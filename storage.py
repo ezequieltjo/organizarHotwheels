@@ -111,3 +111,72 @@ def _row_to_car(row) -> Car:
         serie_tipo=row["serie_tipo"], favorito=bool(row["favorito"]),
         foto_path=row["foto_path"], expositor_id=row["expositor_id"],
         posicao_linha=row["posicao_linha"], posicao_coluna=row["posicao_coluna"])
+
+
+# --- ShelfConfig CRUD ---
+
+def insert_shelf(shelf: ShelfConfig) -> int:
+    conn = get_connection()
+    cursor = conn.execute(
+        "INSERT INTO shelf_configs (nome, linhas, colunas) VALUES (?, ?, ?)",
+        (shelf.nome, shelf.linhas, shelf.colunas))
+    shelf_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return shelf_id
+
+
+def get_all_shelves() -> list[ShelfConfig]:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM shelf_configs").fetchall()
+    conn.close()
+    return [_row_to_shelf(r) for r in rows]
+
+
+def get_shelf_by_id(shelf_id: int) -> ShelfConfig | None:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM shelf_configs WHERE id = ?", (shelf_id,)).fetchone()
+    conn.close()
+    return _row_to_shelf(row) if row else None
+
+
+def update_shelf(shelf: ShelfConfig) -> None:
+    conn = get_connection()
+    conn.execute(
+        "UPDATE shelf_configs SET nome=?, linhas=?, colunas=? WHERE id=?",
+        (shelf.nome, shelf.linhas, shelf.colunas, shelf.id))
+    conn.commit()
+    conn.close()
+
+
+def delete_shelf(shelf_id: int) -> None:
+    conn = get_connection()
+    conn.execute("DELETE FROM shelf_configs WHERE id = ?", (shelf_id,))
+    conn.commit()
+    conn.close()
+
+
+def _row_to_shelf(row) -> ShelfConfig:
+    return ShelfConfig(
+        id=row["id"], nome=row["nome"],
+        linhas=row["linhas"], colunas=row["colunas"])
+
+
+# --- Position management ---
+
+def clear_positions() -> None:
+    conn = get_connection()
+    conn.execute("UPDATE cars SET expositor_id=NULL, posicao_linha=NULL, posicao_coluna=NULL")
+    conn.commit()
+    conn.close()
+
+
+def apply_positions(assignment: dict) -> None:
+    """assignment: {car_id: (shelf_id, row, col)}"""
+    conn = get_connection()
+    for car_id, (shelf_id, row, col) in assignment.items():
+        conn.execute(
+            "UPDATE cars SET expositor_id=?, posicao_linha=?, posicao_coluna=? WHERE id=?",
+            (shelf_id, row, col, car_id))
+    conn.commit()
+    conn.close()

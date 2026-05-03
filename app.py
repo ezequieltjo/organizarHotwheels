@@ -144,3 +144,86 @@ with tab1:
                         delete_car(car.id)
                         refresh()
                         st.rerun()
+
+with tab2:
+    st.header("Organizar")
+    cars = st.session_state.cars
+    shelves = st.session_state.shelves
+
+    if not shelves:
+        st.warning("Adicione pelo menos um expositor na sidebar.")
+    elif not cars:
+        st.warning("Adicione carros à coleção primeiro.")
+    else:
+        slots = total_slots(shelves)
+        if len(cars) > slots:
+            st.warning(f"{len(cars)} carros mas apenas {slots} vagas. Alguns não serão posicionados.")
+
+        modo = st.selectbox("Modo de organização", list(ORGANIZERS.keys()))
+
+        if st.button("Gerar organização"):
+            func = ORGANIZERS[modo]
+            assignment = func(cars, shelves)
+            st.session_state.assignment = assignment
+            st.rerun()
+
+        if "assignment" in st.session_state and st.session_state.assignment:
+            assignment = st.session_state.assignment
+            fig = render_grid(assignment, cars, shelves)
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.subheader("Posições")
+            car_map = {c.id: c for c in cars}
+            pos_data = []
+            for car_id, (shelf_id, row, col) in assignment.items():
+                car = car_map.get(car_id)
+                if car:
+                    shelf = next((s for s in shelves if s.id == shelf_id), None)
+                    pos_data.append({
+                        "Modelo": car.modelo,
+                        "Cor": car.cor,
+                        "Expositor": shelf.nome if shelf else "?",
+                        "Linha": row + 1,
+                        "Coluna": col + 1,
+                    })
+            st.dataframe(pos_data, use_container_width=True, hide_index=True)
+
+            c1, c2 = st.columns(2)
+            if c1.button("Aplicar posições"):
+                clear_positions()
+                apply_positions(assignment)
+                refresh()
+                del st.session_state.assignment
+                st.success("Posições salvas!")
+                st.rerun()
+            if c2.button("Exportar CSV"):
+                import pandas as pd
+                df = pd.DataFrame(pos_data)
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("Baixar", csv, "organizacao.csv", "text/csv")
+
+with tab3:
+    st.header("Expositores")
+    shelves = st.session_state.shelves
+    cars = st.session_state.cars
+
+    if not shelves:
+        st.info("Nenhum expositor cadastrado.")
+    else:
+        positioned = [c for c in cars if c.expositor_id is not None]
+        if not positioned:
+            st.info("Nenhum carro posicionado. Use a aba Organizar.")
+        else:
+            assignment = {c.id: (c.expositor_id, c.posicao_linha, c.posicao_coluna)
+                          for c in positioned}
+            fig = render_grid(assignment, cars, shelves)
+            st.plotly_chart(fig, use_container_width=True)
+
+            for shelf in shelves:
+                shelf_cars = [c for c in positioned if c.expositor_id == shelf.id]
+                if shelf_cars:
+                    st.subheader(shelf.nome)
+                    for car in sorted(shelf_cars, key=lambda c: (c.posicao_linha, c.posicao_coluna)):
+                        pos = f"L{car.posicao_linha + 1} C{car.posicao_coluna + 1}"
+                        fav = "★ " if car.favorito else ""
+                        st.write(f"- {pos}: {fav}{car.modelo} ({car.cor})")

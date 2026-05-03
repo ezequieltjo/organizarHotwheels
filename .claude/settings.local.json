@@ -3,7 +3,24 @@
     "allow": [
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(pip install *)",
+      "Bash(python -m pytest tests/test_models.py -v)",
+      "Bash(python -m pytest tests/test_color_utils.py -v)",
+      "Bash(python -m pytest tests/test_storage.py -v)",
+      "Bash(python -m pytest tests/test_storage_shelves.py -v)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pytest tests/test_importer.py -v)",
+      "Bash(python -m pytest tests/test_organizers.py -v)",
+      "Bash(python -m pytest tests/test_visualizer.py -v)",
+      "Bash(python -c \"import app; print\\('import ok'\\)\")",
+      "Bash(python -c \"import app; print\\('ok'\\)\")",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(streamlit run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501)",
+      "Bash(python tests/test_e2e.py)",
+      "Bash(python -c ' *)",
+      "Bash(taskkill //F //IM streamlit.exe)"
     ]
   }
 }

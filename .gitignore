@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+db/collection.db
+photos/*.jpg
+photos/*.png
+photos/*.jpeg
+.env
+.venv/

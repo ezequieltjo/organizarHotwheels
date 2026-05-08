@@ -9,9 +9,9 @@ def csv_file(tmp_path):
     path = tmp_path / "cars.csv"
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["modelo", "marca", "ano", "cor", "serie_tipo"])
-        w.writerow(["Corvette", "Mattel", 2023, "vermelho", "Mainline"])
-        w.writerow(["Mustang", "Hot Wheels", 2022, "azul", "Premium"])
+        w.writerow(["modelo", "marca", "fabricante", "ano", "cor", "serie_tipo"])
+        w.writerow(["Corvette", "Chevrolet", "Hot Wheels", 2023, "vermelho", "Mainline"])
+        w.writerow(["Mustang", "Ford", "Matchbox", 2022, "azul", "Premium"])
     return path
 
 
@@ -20,7 +20,8 @@ def test_import_csv(csv_file):
     assert len(cars) == 2
     assert cars[0].modelo == "Corvette"
     assert cars[0].cor_hex == "#FF0000"
-    assert cars[1].marca == "Hot Wheels"
+    assert cars[0].fabricante == "Hot Wheels"
+    assert cars[1].marca == "Ford"
     assert cars[1].cor_hex == "#0000FF"
 
 
@@ -34,6 +35,7 @@ def test_import_csv_missing_columns(tmp_path):
     assert len(cars) == 1
     assert cars[0].modelo == "Corvette"
     assert cars[0].marca == ""
+    assert cars[0].fabricante == ""
     assert cars[0].cor_hex == "#FF0000"
 
 

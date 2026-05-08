@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS cars (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     modelo TEXT NOT NULL,
     marca TEXT NOT NULL DEFAULT '',
+    fabricante TEXT NOT NULL DEFAULT '',
     ano INTEGER NOT NULL DEFAULT 0,
     cor TEXT NOT NULL DEFAULT '',
     cor_hex TEXT NOT NULL DEFAULT '',
@@ -51,6 +52,10 @@ def get_connection():
 def init_db():
     conn = get_connection()
     conn.executescript(SCHEMA)
+    # Migrate: add fabricante column if missing
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(cars)").fetchall()]
+    if "fabricante" not in cols:
+        conn.execute("ALTER TABLE cars ADD COLUMN fabricante TEXT NOT NULL DEFAULT ''")
     conn.commit()
     conn.close()
 
@@ -58,10 +63,10 @@ def init_db():
 def insert_car(car: Car) -> int:
     conn = get_connection()
     cursor = conn.execute(
-        """INSERT INTO cars (modelo, marca, ano, cor, cor_hex, serie_tipo,
+        """INSERT INTO cars (modelo, marca, fabricante, ano, cor, cor_hex, serie_tipo,
            favorito, foto_path, expositor_id, posicao_linha, posicao_coluna)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (car.modelo, car.marca, car.ano, car.cor, car.cor_hex, car.serie_tipo,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (car.modelo, car.marca, car.fabricante, car.ano, car.cor, car.cor_hex, car.serie_tipo,
          int(car.favorito), car.foto_path, car.expositor_id,
          car.posicao_linha, car.posicao_coluna))
     car_id = cursor.lastrowid
@@ -87,10 +92,10 @@ def get_car_by_id(car_id: int) -> Car | None:
 def update_car(car: Car) -> None:
     conn = get_connection()
     conn.execute(
-        """UPDATE cars SET modelo=?, marca=?, ano=?, cor=?, cor_hex=?,
+        """UPDATE cars SET modelo=?, marca=?, fabricante=?, ano=?, cor=?, cor_hex=?,
            serie_tipo=?, favorito=?, foto_path=?, expositor_id=?,
            posicao_linha=?, posicao_coluna=? WHERE id=?""",
-        (car.modelo, car.marca, car.ano, car.cor, car.cor_hex, car.serie_tipo,
+        (car.modelo, car.marca, car.fabricante, car.ano, car.cor, car.cor_hex, car.serie_tipo,
          int(car.favorito), car.foto_path, car.expositor_id,
          car.posicao_linha, car.posicao_coluna, car.id))
     conn.commit()
@@ -107,6 +112,7 @@ def delete_car(car_id: int) -> None:
 def _row_to_car(row) -> Car:
     return Car(
         id=row["id"], modelo=row["modelo"], marca=row["marca"],
+        fabricante=row["fabricante"],
         ano=row["ano"], cor=row["cor"], cor_hex=row["cor_hex"],
         serie_tipo=row["serie_tipo"], favorito=bool(row["favorito"]),
         foto_path=row["foto_path"], expositor_id=row["expositor_id"],

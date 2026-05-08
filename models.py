@@ -7,6 +7,7 @@ class Car:
     id: Optional[int] = None
     modelo: str = ""
     marca: str = ""
+    fabricante: str = ""
     ano: int = 0
     cor: str = ""
     cor_hex: str = ""

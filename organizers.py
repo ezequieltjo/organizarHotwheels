@@ -22,6 +22,11 @@ def organize_by_brand(cars: list[Car], shelves: list[ShelfConfig]) -> dict:
     return _fill_grid(sorted_cars, shelves)
 
 
+def organize_by_fabricante(cars: list[Car], shelves: list[ShelfConfig]) -> dict:
+    sorted_cars = sorted(cars, key=lambda c: (c.fabricante, c.cor))
+    return _fill_grid(sorted_cars, shelves)
+
+
 def organize_by_year(cars: list[Car], shelves: list[ShelfConfig]) -> dict:
     sorted_cars = sorted(cars, key=lambda c: c.ano)
     return _fill_grid(sorted_cars, shelves)

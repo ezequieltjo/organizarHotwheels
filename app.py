@@ -6,8 +6,8 @@ from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      clear_positions, apply_positions)
 from importer import import_file
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
-                        organize_by_year, organize_random, organize_favorites_first,
-                        total_slots)
+                        organize_by_fabricante, organize_by_year, organize_random,
+                        organize_favorites_first, total_slots)
 from visualizer import render_grid
 from color_utils import nome_para_hex
 
@@ -17,7 +17,8 @@ PHOTOS_DIR.mkdir(exist_ok=True)
 ORGANIZERS = {
     "Arco-íris (por cor)": organize_rainbow,
     "Degradê (similaridade)": organize_gradient,
-    "Por marca": organize_by_brand,
+    "Por marca (carro)": organize_by_brand,
+    "Por fabricante (miniatura)": organize_by_fabricante,
     "Por ano": organize_by_year,
     "Aleatório": organize_random,
     "Favoritos na frente": organize_favorites_first,
@@ -85,26 +86,33 @@ tab1, tab2, tab3 = st.tabs(["Coleção", "Organizar", "Expositores"])
 with tab1:
     st.header("Coleção")
 
-    c1, c2 = st.columns([3, 1])
+    c1, c2 = st.columns([1, 1])
     with c2:
         st.subheader("Adicionar carro")
         with st.form("add_car"):
             modelo = st.text_input("Modelo")
-            marca = st.text_input("Marca")
+            marca = st.text_input("Marca do carro")
+            fabricante = st.text_input("Fabricante da miniatura")
             ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
-            cor = st.text_input("Cor (nome ou #hex)")
-            serie = st.selectbox("Série", ["Mainline", "Premium", "Treasure Hunt", "Super Treasure Hunt", "Outra"])
+            cor = st.text_input("Cor (nome ou #hex)", placeholder="deixe vazio para usar o seletor")
+            cor_picker = st.color_picker("Seletor de cor", value="#808080")
+            serie = st.selectbox("Série", ["Mainline", "Premium", "Treasure Hunt", "Super Treasure Hunt", "Silver", "Outra"])
             foto = st.file_uploader("Foto", type=["jpg", "jpeg", "png"], key="car_foto")
             if st.form_submit_button("Adicionar"):
                 if modelo.strip():
-                    cor_hex = nome_para_hex(cor.strip()) if cor.strip() else "#808080"
+                    if cor.strip():
+                        cor_hex = nome_para_hex(cor.strip())
+                    else:
+                        cor_hex = cor_picker.upper()
+                        cor = ""
                     foto_path = ""
                     if foto:
                         ext = Path(foto.name).suffix
                         foto_path = str(PHOTOS_DIR / f"{modelo.strip()}{ext}")
                         Path(foto_path).write_bytes(foto.getbuffer())
                     insert_car(Car(
-                        modelo=modelo.strip(), marca=marca.strip(), ano=ano,
+                        modelo=modelo.strip(), marca=marca.strip(),
+                        fabricante=fabricante.strip(), ano=ano,
                         cor=cor.strip(), cor_hex=cor_hex, serie_tipo=serie,
                         foto_path=foto_path
                     ))
@@ -112,11 +120,11 @@ with tab1:
                     st.rerun()
 
     with c1:
-        busca = st.text_input("Buscar", placeholder="modelo, marca ou série...")
+        busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...")
         cars = st.session_state.cars
         if busca.strip():
             b = busca.lower()
-            cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower() or b in c.serie_tipo.lower()]
+            cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower() or b in c.fabricante.lower() or b in c.serie_tipo.lower()]
 
         filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)))
         if filtro_serie != "Todas":
@@ -133,7 +141,7 @@ with tab1:
                                     unsafe_allow_html=True)
                 with col2:
                     fav = "★ " if car.favorito else ""
-                    st.write(f"**{fav}{car.modelo}** — {car.marca} ({car.ano}) | {car.cor} | {car.serie_tipo}")
+                    st.write(f"**{fav}{car.modelo}** — {car.marca} ({car.ano}) | {car.fabricante or '?'} | {car.cor} | {car.serie_tipo}")
                 with col3:
                     if st.button("★", key=f"fav_{car.id}"):
                         car.favorito = not car.favorito

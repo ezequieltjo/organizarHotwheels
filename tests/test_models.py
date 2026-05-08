@@ -10,9 +10,10 @@ def test_car_defaults():
 
 
 def test_car_with_values():
-    car = Car(id=1, modelo="Corvette", marca="Mattel", ano=2023,
+    car = Car(id=1, modelo="Corvette", marca="Chevrolet", fabricante="Hot Wheels", ano=2023,
               cor="Vermelho", cor_hex="#FF0000", favorito=True)
     assert car.modelo == "Corvette"
+    assert car.fabricante == "Hot Wheels"
     assert car.favorito is True
 
 

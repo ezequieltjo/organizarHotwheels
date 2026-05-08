@@ -3,7 +3,7 @@ from storage import insert_car, get_all_cars, get_car_by_id, update_car, delete_
 
 
 def test_insert_car():
-    car = Car(modelo="Corvette", marca="Mattel", ano=2023,
+    car = Car(modelo="Corvette", marca="Chevrolet", fabricante="Hot Wheels", ano=2023,
               cor="Vermelho", cor_hex="#FF0000")
     car_id = insert_car(car)
     assert car_id == 1
@@ -31,7 +31,7 @@ def test_get_car_by_id_not_found():
 
 
 def test_update_car():
-    insert_car(Car(modelo="Corvette", marca="Mattel"))
+    insert_car(Car(modelo="Corvette", marca="Chevrolet"))
     car = get_car_by_id(1)
     car.modelo = "Camaro"
     update_car(car)

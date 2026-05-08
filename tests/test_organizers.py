@@ -1,14 +1,14 @@
 from models import Car, ShelfConfig
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
-                        organize_by_year, organize_random, organize_favorites_first,
-                        total_slots, _fill_grid)
+                        organize_by_fabricante, organize_by_year, organize_random,
+                        organize_favorites_first, total_slots, _fill_grid)
 
 
 def make_cars():
     return [
-        Car(id=1, modelo="A", cor_hex="#FF0000", cor="vermelho", marca="Mattel", ano=2023, favorito=False),
-        Car(id=2, modelo="B", cor_hex="#0000FF", cor="azul", marca="Hot Wheels", ano=2022, favorito=True),
-        Car(id=3, modelo="C", cor_hex="#00FF00", cor="verde", marca="Mattel", ano=2024, favorito=False),
+        Car(id=1, modelo="A", cor_hex="#FF0000", cor="vermelho", marca="Chevrolet", fabricante="Hot Wheels", ano=2023, favorito=False),
+        Car(id=2, modelo="B", cor_hex="#0000FF", cor="azul", marca="Ford", fabricante="Matchbox", ano=2022, favorito=True),
+        Car(id=3, modelo="C", cor_hex="#00FF00", cor="verde", marca="Chevrolet", fabricante="Hot Wheels", ano=2024, favorito=False),
     ]
 
 
@@ -64,9 +64,18 @@ def test_organize_by_brand():
     cars = make_cars()
     result = organize_by_brand(cars, make_shelves())
     ids = list(result.keys())
-    assert ids[0] == 2  # Hot Wheels
-    assert ids[1] == 3  # Mattel cor=verde (sorted by cor string)
-    assert ids[2] == 1  # Mattel cor=vermelho
+    assert ids[0] == 3  # Chevrolet, cor=verde
+    assert ids[1] == 1  # Chevrolet, cor=vermelho
+    assert ids[2] == 2  # Ford
+
+
+def test_organize_by_fabricante():
+    cars = make_cars()
+    result = organize_by_fabricante(cars, make_shelves())
+    ids = list(result.keys())
+    assert ids[0] == 3  # Hot Wheels, cor=verde
+    assert ids[1] == 1  # Hot Wheels, cor=vermelho
+    assert ids[2] == 2  # Matchbox
 
 
 def test_organize_by_year():

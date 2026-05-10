@@ -25,3 +25,12 @@ class ShelfConfig:
     nome: str = ""
     linhas: int = 0
     colunas: int = 0
+    parede_linha: int = 0
+    parede_coluna: int = 0
+
+
+@dataclass
+class ParedeConfig:
+    id: int = 1
+    linhas: int = 1
+    colunas: int = 1

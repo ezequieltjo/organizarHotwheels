@@ -1,7 +1,7 @@
-from models import Car, ShelfConfig
+from models import Car, ShelfConfig, ParedeConfig
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
-                        organize_favorites_first, total_slots, _fill_grid)
+                        organize_favorites_first, total_slots, _fill_grid, _fill_wall_grid)
 
 
 def make_cars():
@@ -111,3 +111,96 @@ def test_organize_gradient():
 def test_organize_empty():
     result = organize_rainbow([], make_shelves())
     assert result == {}
+
+
+# --- Wall grid tests ---
+
+def test_fill_wall_grid_2x1():
+    """2 shelves side by side (1 wall row, 2 wall cols) — flows across shelves"""
+    cars = make_cars()
+    shelves = [
+        ShelfConfig(id=1, nome="P1", linhas=2, colunas=2, parede_linha=0, parede_coluna=0),
+        ShelfConfig(id=2, nome="P2", linhas=2, colunas=2, parede_linha=0, parede_coluna=1),
+    ]
+    wall = ParedeConfig(linhas=1, colunas=2)
+    result = _fill_wall_grid(cars, shelves, wall)
+    assert len(result) == 3
+    # Row 0 fills P1 col0, P1 col1, then P2 col0, P2 col1
+    assert result[1] == (1, 0, 0)  # P1 row0 col0
+    assert result[2] == (1, 0, 1)  # P1 row0 col1
+    assert result[3] == (2, 0, 0)  # P2 row0 col0 (flows across!)
+
+
+def test_fill_wall_grid_1x2():
+    """2 shelves stacked (2 wall rows, 1 wall col)"""
+    cars = make_cars()
+    shelves = [
+        ShelfConfig(id=1, nome="P1", linhas=1, colunas=2, parede_linha=0, parede_coluna=0),
+        ShelfConfig(id=2, nome="P2", linhas=1, colunas=2, parede_linha=1, parede_coluna=0),
+    ]
+    wall = ParedeConfig(linhas=2, colunas=1)
+    result = _fill_wall_grid(cars, shelves, wall)
+    assert len(result) == 3
+    assert result[1] == (1, 0, 0)
+    assert result[2] == (1, 0, 1)
+    assert result[3] == (2, 0, 0)
+
+
+def test_fill_wall_grid_flows_across_wall_row():
+    """Cars flow left→right across shelves in same wall row"""
+    cars = make_cars()
+    shelves = [
+        ShelfConfig(id=1, nome="P1", linhas=1, colunas=1, parede_linha=0, parede_coluna=0),
+        ShelfConfig(id=2, nome="P2", linhas=1, colunas=2, parede_linha=0, parede_coluna=1),
+    ]
+    wall = ParedeConfig(linhas=1, colunas=2)
+    result = _fill_wall_grid(cars, shelves, wall)
+    assert len(result) == 3
+    # First car fills P1 (only 1 slot)
+    assert result[1] == (1, 0, 0)
+    # Remaining cars flow to P2
+    assert result[2] == (2, 0, 0)
+    assert result[3] == (2, 0, 1)
+
+
+def test_fill_wall_grid_empty_position():
+    """Empty wall position is skipped"""
+    cars = make_cars()
+    shelves = [
+        ShelfConfig(id=1, nome="P1", linhas=1, colunas=2, parede_linha=0, parede_coluna=0),
+        # No shelf at (0, 1)
+        ShelfConfig(id=2, nome="P2", linhas=1, colunas=2, parede_linha=1, parede_coluna=0),
+    ]
+    wall = ParedeConfig(linhas=2, colunas=2)
+    result = _fill_wall_grid(cars, shelves, wall)
+    assert len(result) == 3
+    assert result[1] == (1, 0, 0)
+    assert result[2] == (1, 0, 1)
+    assert result[3] == (2, 0, 0)
+
+
+def test_organize_rainbow_with_wall():
+    cars = make_cars()
+    shelves = [
+        ShelfConfig(id=1, nome="P1", linhas=1, colunas=2, parede_linha=0, parede_coluna=0),
+        ShelfConfig(id=2, nome="P2", linhas=1, colunas=2, parede_linha=0, parede_coluna=1),
+    ]
+    wall = ParedeConfig(linhas=1, colunas=2)
+    result = organize_rainbow(cars, shelves, wall)
+    ids = list(result.keys())
+    assert ids[0] == 1  # vermelho
+    assert ids[1] == 3  # verde
+    assert ids[2] == 2  # azul
+
+
+def test_organize_without_wall_falls_back():
+    """Without wall, uses sequential fill"""
+    cars = make_cars()
+    shelves = [
+        ShelfConfig(id=1, nome="P1", linhas=1, colunas=1),
+        ShelfConfig(id=2, nome="P2", linhas=1, colunas=2),
+    ]
+    result = organize_rainbow(cars, shelves, wall=None)
+    assert len(result) == 3
+    # Same as _fill_grid sequential
+    assert result[1] == (1, 0, 0)

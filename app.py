@@ -1,9 +1,11 @@
 import streamlit as st
 from pathlib import Path
-from models import Car, ShelfConfig
+
+st.set_page_config(layout="wide")
+from models import Car, ShelfConfig, ParedeConfig
 from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      insert_shelf, get_all_shelves, update_shelf, delete_shelf,
-                     clear_positions, apply_positions)
+                     clear_positions, apply_positions, get_wall_config, save_wall_config)
 from importer import import_file
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
@@ -30,94 +32,102 @@ init_db()
 def refresh():
     st.session_state.cars = get_all_cars()
     st.session_state.shelves = get_all_shelves()
+    st.session_state.wall = get_wall_config()
 
 
 if "cars" not in st.session_state:
     refresh()
 
-# --- Sidebar ---
-with st.sidebar:
-    st.header("Expositores")
-    with st.expander("Adicionar expositor"):
-        nome = st.text_input("Nome", key="shelf_nome")
-        linhas = st.number_input("Linhas", min_value=1, max_value=20, value=4, key="shelf_linhas")
-        colunas = st.number_input("Colunas", min_value=1, max_value=30, value=10, key="shelf_colunas")
-        if st.button("Adicionar"):
-            if nome.strip():
-                insert_shelf(ShelfConfig(nome=nome.strip(), linhas=linhas, colunas=colunas))
-                refresh()
-                st.rerun()
-
-    for shelf in st.session_state.shelves:
-        with st.expander(f"{shelf.nome} ({shelf.linhas}x{shelf.colunas})"):
-            new_nome = st.text_input("Nome", value=shelf.nome, key=f"sn_{shelf.id}")
-            new_lin = st.number_input("Linhas", value=shelf.linhas, min_value=1, max_value=20, key=f"sl_{shelf.id}")
-            new_col = st.number_input("Colunas", value=shelf.colunas, min_value=1, max_value=30, key=f"sc_{shelf.id}")
-            c1, c2 = st.columns(2)
-            if c1.button("Salvar", key=f"ss_{shelf.id}"):
-                shelf.nome = new_nome.strip()
-                shelf.linhas = new_lin
-                shelf.colunas = new_col
-                update_shelf(shelf)
-                refresh()
-                st.rerun()
-            if c2.button("Remover", key=f"sd_{shelf.id}"):
-                delete_shelf(shelf.id)
-                refresh()
-                st.rerun()
-
-    st.divider()
-    st.header("Importar CSV/Excel")
-    uploaded = st.file_uploader("Arquivo", type=["csv", "xlsx", "xls"], key="import_file")
-    if uploaded and st.button("Importar"):
-        tmp = PHOTOS_DIR / uploaded.name
-        tmp.write_bytes(uploaded.getbuffer())
-        cars = import_file(tmp)
-        for car in cars:
-            insert_car(car)
-        tmp.unlink()
-        refresh()
-        st.success(f"{len(cars)} carros importados!")
-        st.rerun()
-
 # --- Main tabs ---
-tab1, tab2, tab3 = st.tabs(["Coleção", "Organizar", "Expositores"])
+tab1, tab2, tab3 = st.tabs(["Coleção", "Expositores", "Organizar"])
 
 with tab1:
     st.header("Coleção")
 
-    c1, c2 = st.columns([1, 1])
+    editing_id = st.session_state.get("editing_car_id")
+    editing_car = None
+    if editing_id:
+        editing_car = next((c for c in st.session_state.cars if c.id == editing_id), None)
+        if not editing_car:
+            del st.session_state.editing_car_id
+            editing_id = None
+
+    c1, c2 = st.columns([3, 2])
     with c2:
-        st.subheader("Adicionar carro")
-        with st.form("add_car"):
-            modelo = st.text_input("Modelo")
-            marca = st.text_input("Marca do carro")
-            fabricante = st.text_input("Fabricante da miniatura")
-            ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
-            cor = st.text_input("Cor (nome ou #hex)", placeholder="deixe vazio para usar o seletor")
-            cor_picker = st.color_picker("Seletor de cor", value="#808080")
-            serie = st.selectbox("Série", ["Mainline", "Premium", "Treasure Hunt", "Super Treasure Hunt", "Silver", "Outra"])
-            foto = st.file_uploader("Foto", type=["jpg", "jpeg", "png"], key="car_foto")
-            if st.form_submit_button("Adicionar"):
-                if modelo.strip():
-                    if cor.strip():
-                        cor_hex = nome_para_hex(cor.strip())
-                    else:
-                        cor_hex = cor_picker.upper()
-                        cor = ""
-                    foto_path = ""
-                    if foto:
-                        ext = Path(foto.name).suffix
-                        foto_path = str(PHOTOS_DIR / f"{modelo.strip()}{ext}")
-                        Path(foto_path).write_bytes(foto.getbuffer())
-                    insert_car(Car(
-                        modelo=modelo.strip(), marca=marca.strip(),
-                        fabricante=fabricante.strip(), ano=ano,
-                        cor=cor.strip(), cor_hex=cor_hex, serie_tipo=serie,
-                        foto_path=foto_path
-                    ))
-                    refresh()
+        if editing_car:
+            st.subheader(f"Editar: {editing_car.modelo}")
+            with st.form("edit_car"):
+                series_options = ["Mainline", "Premium", "Treasure Hunt", "Super Treasure Hunt", "Silver", "Outra"]
+                modelo = st.text_input("Modelo", value=editing_car.modelo)
+                marca = st.text_input("Marca do carro", value=editing_car.marca)
+                fabricante = st.text_input("Fabricante da miniatura", value=editing_car.fabricante)
+                ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
+                cor = st.text_input("Cor (nome ou #hex)", value=editing_car.cor, placeholder="deixe vazio para usar o seletor")
+                cor_picker = st.color_picker("Seletor de cor", value=editing_car.cor_hex or "#808080")
+                serie_idx = series_options.index(editing_car.serie_tipo) if editing_car.serie_tipo in series_options else 0
+                serie = st.selectbox("Série", series_options, index=serie_idx)
+                foto = st.file_uploader("Foto (manter atual se vazio)", type=["jpg", "jpeg", "png"], key="car_foto_edit")
+                bc1, bc2 = st.columns(2)
+                save = bc1.form_submit_button("Salvar")
+                cancel = bc2.form_submit_button("Cancelar")
+                if cancel:
+                    del st.session_state.editing_car_id
                     st.rerun()
+                if save:
+                    if modelo.strip():
+                        if cor.strip():
+                            cor_hex = nome_para_hex(cor.strip())
+                        else:
+                            cor_hex = cor_picker.upper()
+                            cor = ""
+                        foto_path = editing_car.foto_path
+                        if foto:
+                            ext = Path(foto.name).suffix
+                            foto_path = str(PHOTOS_DIR / f"{modelo.strip()}{ext}")
+                            Path(foto_path).write_bytes(foto.getbuffer())
+                        editing_car.modelo = modelo.strip()
+                        editing_car.marca = marca.strip()
+                        editing_car.fabricante = fabricante.strip()
+                        editing_car.ano = ano
+                        editing_car.cor = cor.strip()
+                        editing_car.cor_hex = cor_hex
+                        editing_car.serie_tipo = serie
+                        editing_car.foto_path = foto_path
+                        update_car(editing_car)
+                        del st.session_state.editing_car_id
+                        refresh()
+                        st.rerun()
+        else:
+            st.subheader("Adicionar carro")
+            with st.form("add_car"):
+                modelo = st.text_input("Modelo")
+                marca = st.text_input("Marca do carro")
+                fabricante = st.text_input("Fabricante da miniatura")
+                ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
+                cor = st.text_input("Cor (nome ou #hex)", placeholder="deixe vazio para usar o seletor")
+                cor_picker = st.color_picker("Seletor de cor", value="#808080")
+                serie = st.selectbox("Série", ["Mainline", "Premium", "Treasure Hunt", "Super Treasure Hunt", "Silver", "Outra"])
+                foto = st.file_uploader("Foto", type=["jpg", "jpeg", "png"], key="car_foto")
+                if st.form_submit_button("Adicionar"):
+                    if modelo.strip():
+                        if cor.strip():
+                            cor_hex = nome_para_hex(cor.strip())
+                        else:
+                            cor_hex = cor_picker.upper()
+                            cor = ""
+                        foto_path = ""
+                        if foto:
+                            ext = Path(foto.name).suffix
+                            foto_path = str(PHOTOS_DIR / f"{modelo.strip()}{ext}")
+                            Path(foto_path).write_bytes(foto.getbuffer())
+                        insert_car(Car(
+                            modelo=modelo.strip(), marca=marca.strip(),
+                            fabricante=fabricante.strip(), ano=ano,
+                            cor=cor.strip(), cor_hex=cor_hex, serie_tipo=serie,
+                            foto_path=foto_path
+                        ))
+                        refresh()
+                        st.rerun()
 
     with c1:
         busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...")
@@ -132,7 +142,7 @@ with tab1:
 
         for car in cars:
             with st.container():
-                col1, col2, col3 = st.columns([1, 4, 1])
+                col1, col2, col3 = st.columns([1, 6, 2])
                 with col1:
                     if car.foto_path and Path(car.foto_path).exists():
                         st.image(car.foto_path, width=60)
@@ -141,25 +151,98 @@ with tab1:
                                     unsafe_allow_html=True)
                 with col2:
                     fav = "★ " if car.favorito else ""
-                    st.write(f"**{fav}{car.modelo}** — {car.marca} ({car.ano}) | {car.fabricante or '?'} | {car.cor} | {car.serie_tipo}")
+                    st.write(f"**{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
                 with col3:
-                    if st.button("★", key=f"fav_{car.id}"):
+                    bc1, bc2, bc3 = st.columns(3)
+                    if bc1.button("★", key=f"fav_{car.id}"):
                         car.favorito = not car.favorito
                         update_car(car)
                         refresh()
                         st.rerun()
-                    if st.button("🗑", key=f"del_{car.id}"):
+                    if bc2.button("✏️", key=f"edit_{car.id}"):
+                        st.session_state.editing_car_id = car.id
+                        st.rerun()
+                    if bc3.button("🗑", key=f"del_{car.id}"):
                         delete_car(car.id)
                         refresh()
                         st.rerun()
 
 with tab2:
+    st.header("Expositores")
+    wall = st.session_state.wall
+
+    ec1, ec2 = st.columns([1, 2])
+    with ec1:
+        st.subheader("Parede")
+        w_linhas = st.number_input("Linhas de expositores", min_value=1, max_value=10,
+                                   value=wall.linhas, key="wall_linhas")
+        w_colunas = st.number_input("Colunas de expositores", min_value=1, max_value=10,
+                                    value=wall.colunas, key="wall_colunas")
+        if st.button("Salvar parede"):
+            save_wall_config(w_linhas, w_colunas)
+            refresh()
+            st.rerun()
+
+        st.subheader("Adicionar expositor")
+        with st.form("add_shelf"):
+            nome = st.text_input("Nome")
+            linhas = st.number_input("Linhas", min_value=1, max_value=20, value=4, key="shelf_linhas")
+            colunas = st.number_input("Colunas", min_value=1, max_value=30, value=10, key="shelf_colunas")
+            if st.form_submit_button("Adicionar"):
+                if nome.strip():
+                    insert_shelf(ShelfConfig(nome=nome.strip(), linhas=linhas, colunas=colunas))
+                    refresh()
+                    st.rerun()
+
+        wall = st.session_state.wall
+        for shelf in st.session_state.shelves:
+            with st.expander(f"{shelf.nome} ({shelf.linhas}x{shelf.colunas})"):
+                with st.form(f"shelf_form_{shelf.id}"):
+                    new_nome = st.text_input("Nome", value=shelf.nome)
+                    new_lin = st.number_input("Linhas", value=shelf.linhas, min_value=1, max_value=20)
+                    new_col = st.number_input("Colunas", value=shelf.colunas, min_value=1, max_value=30)
+                    p_linha = st.selectbox("Linha na parede", range(wall.linhas),
+                                           index=min(shelf.parede_linha, wall.linhas - 1))
+                    p_coluna = st.selectbox("Coluna na parede", range(wall.colunas),
+                                            index=min(shelf.parede_coluna, wall.colunas - 1))
+                    bc1, bc2 = st.columns(2)
+                    save_btn = bc1.form_submit_button("Salvar")
+                    del_btn = bc2.form_submit_button("Remover")
+                    if save_btn:
+                        shelf.nome = new_nome.strip()
+                        shelf.linhas = new_lin
+                        shelf.colunas = new_col
+                        shelf.parede_linha = p_linha
+                        shelf.parede_coluna = p_coluna
+                        update_shelf(shelf)
+                        refresh()
+                        st.rerun()
+                    if del_btn:
+                        delete_shelf(shelf.id)
+                        refresh()
+                        st.rerun()
+
+    with ec2:
+        shelves = st.session_state.shelves
+        cars = st.session_state.cars
+        if shelves:
+            positioned = [c for c in cars if c.expositor_id is not None]
+            if positioned:
+                assignment = {c.id: (c.expositor_id, c.posicao_linha, c.posicao_coluna)
+                              for c in positioned}
+                fig = render_grid(assignment, cars, shelves, wall)
+                st.plotly_chart(fig, use_container_width=True, key="grid_expositores")
+            else:
+                st.info("Nenhum carro posicionado ainda. Use a aba Organizar.")
+
+with tab3:
     st.header("Organizar")
     cars = st.session_state.cars
     shelves = st.session_state.shelves
+    wall = st.session_state.wall
 
     if not shelves:
-        st.warning("Adicione pelo menos um expositor na sidebar.")
+        st.warning("Adicione pelo menos um expositor na aba Expositores.")
     elif not cars:
         st.warning("Adicione carros à coleção primeiro.")
     else:
@@ -171,14 +254,14 @@ with tab2:
 
         if st.button("Gerar organização"):
             func = ORGANIZERS[modo]
-            assignment = func(cars, shelves)
+            assignment = func(cars, shelves, wall)
             st.session_state.assignment = assignment
             st.rerun()
 
         if "assignment" in st.session_state and st.session_state.assignment:
             assignment = st.session_state.assignment
-            fig = render_grid(assignment, cars, shelves)
-            st.plotly_chart(fig, use_container_width=True)
+            fig = render_grid(assignment, cars, shelves, wall)
+            st.plotly_chart(fig, use_container_width=True, key="grid_organizar")
 
             st.subheader("Posições")
             car_map = {c.id: c for c in cars}
@@ -210,28 +293,16 @@ with tab2:
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button("Baixar", csv, "organizacao.csv", "text/csv")
 
-with tab3:
-    st.header("Expositores")
-    shelves = st.session_state.shelves
-    cars = st.session_state.cars
-
-    if not shelves:
-        st.info("Nenhum expositor cadastrado.")
-    else:
-        positioned = [c for c in cars if c.expositor_id is not None]
-        if not positioned:
-            st.info("Nenhum carro posicionado. Use a aba Organizar.")
-        else:
-            assignment = {c.id: (c.expositor_id, c.posicao_linha, c.posicao_coluna)
-                          for c in positioned}
-            fig = render_grid(assignment, cars, shelves)
-            st.plotly_chart(fig, use_container_width=True)
-
-            for shelf in shelves:
-                shelf_cars = [c for c in positioned if c.expositor_id == shelf.id]
-                if shelf_cars:
-                    st.subheader(shelf.nome)
-                    for car in sorted(shelf_cars, key=lambda c: (c.posicao_linha, c.posicao_coluna)):
-                        pos = f"L{car.posicao_linha + 1} C{car.posicao_coluna + 1}"
-                        fav = "★ " if car.favorito else ""
-                        st.write(f"- {pos}: {fav}{car.modelo} ({car.cor})")
+    st.divider()
+    st.subheader("Importar CSV/Excel")
+    uploaded = st.file_uploader("Arquivo", type=["csv", "xlsx", "xls"], key="import_file")
+    if uploaded and st.button("Importar"):
+        tmp = PHOTOS_DIR / uploaded.name
+        tmp.write_bytes(uploaded.getbuffer())
+        cars_imported = import_file(tmp)
+        for car in cars_imported:
+            insert_car(car)
+        tmp.unlink()
+        refresh()
+        st.success(f"{len(cars_imported)} carros importados!")
+        st.rerun()

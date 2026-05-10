@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from models import Car, ShelfConfig
+from models import Car, ShelfConfig, ParedeConfig
 
 DB_PATH = Path(__file__).parent / "db" / "collection.db"
 _db_path = None
@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS shelf_configs (
     nome TEXT NOT NULL,
     linhas INTEGER NOT NULL,
     colunas INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS wall_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    linhas INTEGER NOT NULL DEFAULT 1,
+    colunas INTEGER NOT NULL DEFAULT 1
 );
 """
 
@@ -56,6 +62,12 @@ def init_db():
     cols = [r[1] for r in conn.execute("PRAGMA table_info(cars)").fetchall()]
     if "fabricante" not in cols:
         conn.execute("ALTER TABLE cars ADD COLUMN fabricante TEXT NOT NULL DEFAULT ''")
+    # Migrate: add wall position columns to shelf_configs
+    shelf_cols = [r[1] for r in conn.execute("PRAGMA table_info(shelf_configs)").fetchall()]
+    if "parede_linha" not in shelf_cols:
+        conn.execute("ALTER TABLE shelf_configs ADD COLUMN parede_linha INTEGER NOT NULL DEFAULT 0")
+    if "parede_coluna" not in shelf_cols:
+        conn.execute("ALTER TABLE shelf_configs ADD COLUMN parede_coluna INTEGER NOT NULL DEFAULT 0")
     conn.commit()
     conn.close()
 
@@ -124,8 +136,8 @@ def _row_to_car(row) -> Car:
 def insert_shelf(shelf: ShelfConfig) -> int:
     conn = get_connection()
     cursor = conn.execute(
-        "INSERT INTO shelf_configs (nome, linhas, colunas) VALUES (?, ?, ?)",
-        (shelf.nome, shelf.linhas, shelf.colunas))
+        "INSERT INTO shelf_configs (nome, linhas, colunas, parede_linha, parede_coluna) VALUES (?, ?, ?, ?, ?)",
+        (shelf.nome, shelf.linhas, shelf.colunas, shelf.parede_linha, shelf.parede_coluna))
     shelf_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -149,8 +161,8 @@ def get_shelf_by_id(shelf_id: int) -> ShelfConfig | None:
 def update_shelf(shelf: ShelfConfig) -> None:
     conn = get_connection()
     conn.execute(
-        "UPDATE shelf_configs SET nome=?, linhas=?, colunas=? WHERE id=?",
-        (shelf.nome, shelf.linhas, shelf.colunas, shelf.id))
+        "UPDATE shelf_configs SET nome=?, linhas=?, colunas=?, parede_linha=?, parede_coluna=? WHERE id=?",
+        (shelf.nome, shelf.linhas, shelf.colunas, shelf.parede_linha, shelf.parede_coluna, shelf.id))
     conn.commit()
     conn.close()
 
@@ -165,7 +177,8 @@ def delete_shelf(shelf_id: int) -> None:
 def _row_to_shelf(row) -> ShelfConfig:
     return ShelfConfig(
         id=row["id"], nome=row["nome"],
-        linhas=row["linhas"], colunas=row["colunas"])
+        linhas=row["linhas"], colunas=row["colunas"],
+        parede_linha=row["parede_linha"], parede_coluna=row["parede_coluna"])
 
 
 # --- Position management ---
@@ -184,5 +197,25 @@ def apply_positions(assignment: dict) -> None:
         conn.execute(
             "UPDATE cars SET expositor_id=?, posicao_linha=?, posicao_coluna=? WHERE id=?",
             (shelf_id, row, col, car_id))
+    conn.commit()
+    conn.close()
+
+
+# --- WallConfig CRUD ---
+
+def get_wall_config() -> ParedeConfig:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM wall_config WHERE id = 1").fetchone()
+    conn.close()
+    if row:
+        return ParedeConfig(id=row["id"], linhas=row["linhas"], colunas=row["colunas"])
+    return ParedeConfig()
+
+
+def save_wall_config(linhas: int, colunas: int) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT OR REPLACE INTO wall_config (id, linhas, colunas) VALUES (1, ?, ?)",
+        (linhas, colunas))
     conn.commit()
     conn.close()

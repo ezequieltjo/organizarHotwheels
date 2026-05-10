@@ -20,7 +20,13 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501)",
       "Bash(python tests/test_e2e.py)",
       "Bash(python -c ' *)",
-      "Bash(taskkill //F //IM streamlit.exe)"
+      "Bash(taskkill //F //IM streamlit.exe)",
+      "Bash(python *)",
+      "Bash(git push *)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "WebSearch",
+      "Bash(sqlite3 *)"
     ]
   }
 }

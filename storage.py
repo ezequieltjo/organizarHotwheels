@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS cars (
     foto_path TEXT NOT NULL DEFAULT '',
     expositor_id INTEGER,
     posicao_linha INTEGER,
-    posicao_coluna INTEGER
+    posicao_coluna INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS shelf_configs (
@@ -68,6 +70,19 @@ def init_db():
         conn.execute("ALTER TABLE shelf_configs ADD COLUMN parede_linha INTEGER NOT NULL DEFAULT 0")
     if "parede_coluna" not in shelf_cols:
         conn.execute("ALTER TABLE shelf_configs ADD COLUMN parede_coluna INTEGER NOT NULL DEFAULT 0")
+    if "created_at" not in cols:
+        conn.execute("ALTER TABLE cars ADD COLUMN created_at TIMESTAMP")
+        conn.execute("ALTER TABLE cars ADD COLUMN updated_at TIMESTAMP")
+        ids = [r[0] for r in conn.execute("SELECT id FROM cars ORDER BY id").fetchall()]
+        for i, car_id in enumerate(ids):
+            ts = f"datetime('now', '+{i} seconds')"
+            conn.execute(f"UPDATE cars SET created_at = {ts}, updated_at = {ts} WHERE id = ?", (car_id,))
+    elif "updated_at" not in cols:
+        conn.execute("ALTER TABLE cars ADD COLUMN updated_at TIMESTAMP")
+        ids = [r[0] for r in conn.execute("SELECT id FROM cars ORDER BY id").fetchall()]
+        for i, car_id in enumerate(ids):
+            ts = f"datetime('now', '+{i} seconds')"
+            conn.execute(f"UPDATE cars SET updated_at = {ts} WHERE id = ?", (car_id,))
     conn.commit()
     conn.close()
 
@@ -76,8 +91,8 @@ def insert_car(car: Car) -> int:
     conn = get_connection()
     cursor = conn.execute(
         """INSERT INTO cars (modelo, marca, fabricante, ano, cor, cor_hex, serie_tipo,
-           favorito, foto_path, expositor_id, posicao_linha, posicao_coluna)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           favorito, foto_path, expositor_id, posicao_linha, posicao_coluna, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
         (car.modelo, car.marca, car.fabricante, car.ano, car.cor, car.cor_hex, car.serie_tipo,
          int(car.favorito), car.foto_path, car.expositor_id,
          car.posicao_linha, car.posicao_coluna))
@@ -106,7 +121,7 @@ def update_car(car: Car) -> None:
     conn.execute(
         """UPDATE cars SET modelo=?, marca=?, fabricante=?, ano=?, cor=?, cor_hex=?,
            serie_tipo=?, favorito=?, foto_path=?, expositor_id=?,
-           posicao_linha=?, posicao_coluna=? WHERE id=?""",
+           posicao_linha=?, posicao_coluna=?, updated_at=CURRENT_TIMESTAMP WHERE id=?""",
         (car.modelo, car.marca, car.fabricante, car.ano, car.cor, car.cor_hex, car.serie_tipo,
          int(car.favorito), car.foto_path, car.expositor_id,
          car.posicao_linha, car.posicao_coluna, car.id))
@@ -128,7 +143,8 @@ def _row_to_car(row) -> Car:
         ano=row["ano"], cor=row["cor"], cor_hex=row["cor_hex"],
         serie_tipo=row["serie_tipo"], favorito=bool(row["favorito"]),
         foto_path=row["foto_path"], expositor_id=row["expositor_id"],
-        posicao_linha=row["posicao_linha"], posicao_coluna=row["posicao_coluna"])
+        posicao_linha=row["posicao_linha"], posicao_coluna=row["posicao_coluna"],
+        created_at=row["created_at"], updated_at=row["updated_at"])
 
 
 # --- ShelfConfig CRUD ---

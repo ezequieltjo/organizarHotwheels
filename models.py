@@ -17,6 +17,8 @@ class Car:
     expositor_id: Optional[int] = None
     posicao_linha: Optional[int] = None
     posicao_coluna: Optional[int] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 @dataclass

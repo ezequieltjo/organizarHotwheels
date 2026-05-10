@@ -96,6 +96,8 @@ with tab1:
                         update_car(editing_car)
                         del st.session_state.editing_car_id
                         refresh()
+                        st.session_state._car_toast_msg = "Carro editado com sucesso!"
+                        st.session_state.car_toast = True
                         st.rerun()
         else:
             st.subheader("Adicionar carro")
@@ -127,6 +129,8 @@ with tab1:
                             foto_path=foto_path
                         ))
                         refresh()
+                        st.session_state._car_toast_msg = "Carro adicionado com sucesso!"
+                        st.session_state.car_toast = True
                         st.rerun()
 
     with c1:
@@ -139,6 +143,30 @@ with tab1:
         filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)))
         if filtro_serie != "Todas":
             cars = [c for c in cars if c.serie_tipo == filtro_serie]
+
+        ordem = st.selectbox("Ordenar por", [
+            "Alfabética (A-Z)", "Alfabética (Z-A)",
+            "Ano (crescente)", "Ano (decrescente)",
+            "Adição (recentes primeiro)", "Adição (antigos primeiro)",
+            "Modificação (recentes primeiro)", "Modificação (antigos primeiro)",
+        ])
+        match ordem:
+            case "Alfabética (A-Z)":
+                cars = sorted(cars, key=lambda c: c.modelo.lower())
+            case "Alfabética (Z-A)":
+                cars = sorted(cars, key=lambda c: c.modelo.lower(), reverse=True)
+            case "Ano (crescente)":
+                cars = sorted(cars, key=lambda c: c.ano)
+            case "Ano (decrescente)":
+                cars = sorted(cars, key=lambda c: c.ano, reverse=True)
+            case "Adição (recentes primeiro)":
+                cars = sorted(cars, key=lambda c: c.created_at or "", reverse=True)
+            case "Adição (antigos primeiro)":
+                cars = sorted(cars, key=lambda c: c.created_at or "")
+            case "Modificação (recentes primeiro)":
+                cars = sorted(cars, key=lambda c: c.updated_at or "", reverse=True)
+            case "Modificação (antigos primeiro)":
+                cars = sorted(cars, key=lambda c: c.updated_at or "")
 
         for car in cars:
             with st.container():
@@ -154,7 +182,7 @@ with tab1:
                     st.write(f"**{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
                 with col3:
                     bc1, bc2, bc3 = st.columns(3)
-                    if bc1.button("★", key=f"fav_{car.id}"):
+                    if bc1.button("⭐", key=f"fav_{car.id}"):
                         car.favorito = not car.favorito
                         update_car(car)
                         refresh()
@@ -162,9 +190,11 @@ with tab1:
                     if bc2.button("✏️", key=f"edit_{car.id}"):
                         st.session_state.editing_car_id = car.id
                         st.rerun()
-                    if bc3.button("🗑", key=f"del_{car.id}"):
+                    if bc3.button("🗑️", key=f"del_{car.id}"):
                         delete_car(car.id)
                         refresh()
+                        st.session_state._car_toast_msg = "Carro removido!"
+                        st.session_state.car_toast = "delete"
                         st.rerun()
 
 with tab2:
@@ -306,3 +336,45 @@ with tab3:
         refresh()
         st.success(f"{len(cars_imported)} carros importados!")
         st.rerun()
+
+# Single script at end: button styling + toast
+_toast_type = st.session_state.pop("car_toast", None)
+_toast_msg = st.session_state.pop("_car_toast_msg", "").replace("'", "&#39;")
+
+_toast_icon = "🗑️" if _toast_type == "delete" else "✅"
+_toast_bg = "#c62828" if _toast_type == "delete" else "#2e7d32"
+_toast_js = ""
+if _toast_type:
+    _toast_js = (
+        f'var t=d.createElement("div");'
+        f't.textContent="{_toast_icon} {_toast_msg}";'
+        f't.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);'
+        f'background:{_toast_bg};color:#fff;padding:10px 24px;border-radius:8px;'
+        f'font-size:1rem;z-index:99999;font-family:sans-serif;transition:opacity 0.3s;";'
+        f'd.body.appendChild(t);'
+        f'setTimeout(function(){{t.style.opacity="0";}},500);'
+        f'setTimeout(function(){{t.remove();}},800);'
+    )
+
+st.html(f"""<script>
+(function(){{
+  var d=parent.document;
+  var s=d.createElement('style');
+  s.textContent=`
+    .car-action-col{{display:flex!important;justify-content:center!important;}}
+    .car-action-col button{{display:flex!important;justify-content:center!important;align-items:center!important;font-size:1.3rem!important;padding:0!important;width:38px!important;height:38px!important;min-width:38px!important;max-width:38px!important;border-radius:8px!important;margin:0 auto!important;line-height:1!important;}}
+  `;
+  d.head.appendChild(s);
+  function markButtons(){{
+    d.querySelectorAll('button').forEach(function(b){{
+      var t=b.textContent.trim();
+      if((t==='⭐'||t==='✏️'||t==='🗑️')&&b.closest('[data-testid="stColumn"]')){{
+        b.closest('[data-testid="stColumn"]').classList.add('car-action-col');
+      }}
+    }});
+  }}
+  markButtons();
+  setInterval(markButtons,300);
+  {_toast_js}
+}})();
+</script>""", unsafe_allow_javascript=True)

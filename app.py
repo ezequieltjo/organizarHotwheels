@@ -273,8 +273,12 @@ with tab1:
                         st.rerun()
                     if bc2.button("✏️", key=f"edit_{car.id}"):
                         st.session_state.editing_car_id = car.id
+                        st.session_state.pop("_pending_photo", None)
+                        st.session_state.pop("_pending_picker_color", None)
                         st.rerun()
                     if bc3.button("🗑️", key=f"del_{car.id}"):
+                        st.session_state.pop("_pending_photo", None)
+                        st.session_state.pop("_pending_picker_color", None)
                         delete_car(car.id)
                         refresh()
                         st.session_state._car_toast_msg = "Carro removido!"

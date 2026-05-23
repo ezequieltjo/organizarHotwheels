@@ -12,6 +12,8 @@ from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_favorites_first, total_slots)
 from visualizer import render_grid
 from color_utils import nome_para_hex
+from camera_component import render_color_picker
+import time
 
 PHOTOS_DIR = Path(__file__).parent / "photos"
 PHOTOS_DIR.mkdir(exist_ok=True)
@@ -38,6 +40,15 @@ def refresh():
 if "cars" not in st.session_state:
     refresh()
 
+def _save_photo(photo_bytes, modelo):
+    """Save photo to disk, return path."""
+    ts = int(time.time() * 1000)
+    safe = "".join(c if c.isalnum() else "_" for c in modelo)[:30]
+    path = str(PHOTOS_DIR / f"{safe}_{ts}.jpg")
+    Path(path).write_bytes(photo_bytes)
+    return path
+
+
 # --- Main tabs ---
 tab1, tab2, tab3 = st.tabs(["Coleção", "Expositores", "Organizar"])
 
@@ -56,44 +67,85 @@ with tab1:
     with c2:
         if editing_car:
             st.subheader(f"Editar: {editing_car.modelo}")
+            existing_marcas = sorted(set(c.marca for c in st.session_state.cars if c.marca))
+            existing_fabricantes = sorted(set(c.fabricante for c in st.session_state.cars if c.fabricante))
+            existing_series = sorted(set(c.serie_tipo for c in st.session_state.cars if c.serie_tipo))
+
+            # --- Photo capture (outside form) ---
+            st.markdown("**Foto do carro**")
+            if editing_car.foto_path and Path(editing_car.foto_path).exists():
+                st.image(editing_car.foto_path, width=200)
+            pc1, pc2 = st.columns(2)
+            with pc1:
+                camera_photo = st.camera_input("📷 Tirar Foto", key="cam_edit")
+            with pc2:
+                file_photo = st.file_uploader("📁 Upload (substituir)", type=["jpg", "jpeg", "png"], key="upload_edit")
+
+            source = camera_photo or file_photo
+            if source:
+                st.session_state._pending_photo = source.getvalue()
+            elif editing_car.foto_path and Path(editing_car.foto_path).exists():
+                st.session_state.setdefault("_pending_photo", Path(editing_car.foto_path).read_bytes())
+
+            # --- Color picker ---
+            picker_color = None
+            if st.session_state.get("_pending_photo"):
+                st.markdown("**Clique na foto para selecionar a cor**")
+                picker_color = render_color_picker(st.session_state._pending_photo, key="picker_edit")
+                if picker_color:
+                    st.session_state._pending_picker_color = picker_color
+
+            # --- Form ---
             with st.form("edit_car"):
-                series_options = ["Mainline", "Premium", "Treasure Hunt", "Super Treasure Hunt", "Silver", "Outra"]
                 modelo = st.text_input("Modelo", value=editing_car.modelo)
-                marca = st.text_input("Marca do carro", value=editing_car.marca)
-                fabricante = st.text_input("Fabricante da miniatura", value=editing_car.fabricante)
+                marca_opts = existing_marcas + ["+ Nova marca"]
+                marca_idx = marca_opts.index(editing_car.marca) if editing_car.marca in marca_opts else 0
+                marca_sel = st.selectbox("Marca do carro", marca_opts, index=marca_idx, key="edit_marca_sel")
+                marca_nova = st.text_input("Nova marca (preencher se '+ Nova marca')", key="marca_nova_edit")
+                fab_opts = existing_fabricantes + ["+ Novo fabricante"]
+                fab_idx = fab_opts.index(editing_car.fabricante) if editing_car.fabricante in fab_opts else 0
+                fabricante_sel = st.selectbox("Fabricante da miniatura", fab_opts, index=fab_idx, key="edit_fab_sel")
+                fabricante_novo = st.text_input("Novo fabricante (preencher se '+ Novo fabricante')", key="fabricante_novo_edit")
+                serie_opts = existing_series + ["+ Nova série"]
+                serie_idx = serie_opts.index(editing_car.serie_tipo) if editing_car.serie_tipo in serie_opts else 0
+                serie_sel = st.selectbox("Série", serie_opts, index=serie_idx, key="edit_serie_sel")
+                serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_edit")
                 ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
                 cor = st.text_input("Cor (nome ou #hex)", value=editing_car.cor, placeholder="deixe vazio para usar o seletor")
-                cor_picker = st.color_picker("Seletor de cor", value=editing_car.cor_hex or "#808080")
-                serie_idx = series_options.index(editing_car.serie_tipo) if editing_car.serie_tipo in series_options else 0
-                serie = st.selectbox("Série", series_options, index=serie_idx)
-                foto = st.file_uploader("Foto (manter atual se vazio)", type=["jpg", "jpeg", "png"], key="car_foto_edit")
+                default_color = st.session_state.get("_pending_picker_color") or editing_car.cor_hex or "#808080"
+                cor_picker = st.color_picker("Seletor de cor", value=default_color, key="cor_picker_edit")
                 bc1, bc2 = st.columns(2)
                 save = bc1.form_submit_button("Salvar")
                 cancel = bc2.form_submit_button("Cancelar")
                 if cancel:
+                    st.session_state.pop("_pending_photo", None)
+                    st.session_state.pop("_pending_picker_color", None)
                     del st.session_state.editing_car_id
                     st.rerun()
                 if save:
+                    marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
+                    fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
+                    serie = serie_nova.strip() if serie_sel == "+ Nova série" and serie_nova.strip() else (serie_sel if serie_sel != "+ Nova série" else "")
                     if modelo.strip():
                         if cor.strip():
                             cor_hex = nome_para_hex(cor.strip())
                         else:
-                            cor_hex = cor_picker.upper()
+                            cor_hex = st.session_state.get("_pending_picker_color") or cor_picker.upper()
                             cor = ""
                         foto_path = editing_car.foto_path
-                        if foto:
-                            ext = Path(foto.name).suffix
-                            foto_path = str(PHOTOS_DIR / f"{modelo.strip()}{ext}")
-                            Path(foto_path).write_bytes(foto.getbuffer())
+                        if st.session_state.get("_pending_photo"):
+                            foto_path = _save_photo(st.session_state._pending_photo, modelo.strip())
                         editing_car.modelo = modelo.strip()
-                        editing_car.marca = marca.strip()
-                        editing_car.fabricante = fabricante.strip()
+                        editing_car.marca = marca
+                        editing_car.fabricante = fabricante
                         editing_car.ano = ano
                         editing_car.cor = cor.strip()
                         editing_car.cor_hex = cor_hex
                         editing_car.serie_tipo = serie
                         editing_car.foto_path = foto_path
                         update_car(editing_car)
+                        st.session_state.pop("_pending_photo", None)
+                        st.session_state.pop("_pending_picker_color", None)
                         del st.session_state.editing_car_id
                         refresh()
                         st.session_state._car_toast_msg = "Carro editado com sucesso!"
@@ -101,55 +153,87 @@ with tab1:
                         st.rerun()
         else:
             st.subheader("Adicionar carro")
+            existing_marcas = sorted(set(c.marca for c in st.session_state.cars if c.marca))
+            existing_fabricantes = sorted(set(c.fabricante for c in st.session_state.cars if c.fabricante))
+            existing_series = sorted(set(c.serie_tipo for c in st.session_state.cars if c.serie_tipo))
+
+            # --- Photo capture (outside form) ---
+            st.markdown("**Foto do carro**")
+            pc1, pc2 = st.columns(2)
+            with pc1:
+                camera_photo = st.camera_input("📷 Tirar Foto", key="cam_add")
+            with pc2:
+                file_photo = st.file_uploader("📁 Upload", type=["jpg", "jpeg", "png"], key="upload_add")
+
+            source = camera_photo or file_photo
+            if source:
+                st.session_state._pending_photo = source.getvalue()
+
+            # --- Color picker ---
+            picker_color = None
+            if st.session_state.get("_pending_photo"):
+                st.markdown("**Clique na foto para selecionar a cor**")
+                picker_color = render_color_picker(st.session_state._pending_photo, key="picker_add")
+                if picker_color:
+                    st.session_state._pending_picker_color = picker_color
+
+            # --- Form (no photo uploader) ---
             with st.form("add_car"):
                 modelo = st.text_input("Modelo")
-                marca = st.text_input("Marca do carro")
-                fabricante = st.text_input("Fabricante da miniatura")
+                marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
+                marca_nova = st.text_input("Nova marca (preencher se '+ Nova marca')", key="marca_nova_add")
+                fabricante_sel = st.selectbox("Fabricante da miniatura", existing_fabricantes + ["+ Novo fabricante"])
+                fabricante_novo = st.text_input("Novo fabricante (preencher se '+ Novo fabricante')", key="fabricante_novo_add")
+                serie_sel = st.selectbox("Série", existing_series + ["+ Nova série"])
+                serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_add")
                 ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
                 cor = st.text_input("Cor (nome ou #hex)", placeholder="deixe vazio para usar o seletor")
-                cor_picker = st.color_picker("Seletor de cor", value="#808080")
-                serie = st.selectbox("Série", ["Mainline", "Premium", "Treasure Hunt", "Super Treasure Hunt", "Silver", "Outra"])
-                foto = st.file_uploader("Foto", type=["jpg", "jpeg", "png"], key="car_foto")
+                default_color = st.session_state.get("_pending_picker_color") or "#808080"
+                cor_picker = st.color_picker("Seletor de cor", value=default_color, key="cor_picker_add")
                 if st.form_submit_button("Adicionar"):
+                    marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
+                    fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
+                    serie = serie_nova.strip() if serie_sel == "+ Nova série" and serie_nova.strip() else (serie_sel if serie_sel != "+ Nova série" else "")
                     if modelo.strip():
                         if cor.strip():
                             cor_hex = nome_para_hex(cor.strip())
                         else:
-                            cor_hex = cor_picker.upper()
+                            cor_hex = st.session_state.get("_pending_picker_color") or cor_picker.upper()
                             cor = ""
                         foto_path = ""
-                        if foto:
-                            ext = Path(foto.name).suffix
-                            foto_path = str(PHOTOS_DIR / f"{modelo.strip()}{ext}")
-                            Path(foto_path).write_bytes(foto.getbuffer())
+                        if st.session_state.get("_pending_photo"):
+                            foto_path = _save_photo(st.session_state._pending_photo, modelo.strip())
                         insert_car(Car(
-                            modelo=modelo.strip(), marca=marca.strip(),
-                            fabricante=fabricante.strip(), ano=ano,
+                            modelo=modelo.strip(), marca=marca,
+                            fabricante=fabricante, ano=ano,
                             cor=cor.strip(), cor_hex=cor_hex, serie_tipo=serie,
                             foto_path=foto_path
                         ))
+                        st.session_state.pop("_pending_photo", None)
+                        st.session_state.pop("_pending_picker_color", None)
                         refresh()
                         st.session_state._car_toast_msg = "Carro adicionado com sucesso!"
                         st.session_state.car_toast = True
                         st.rerun()
 
     with c1:
-        busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...")
+        busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key="busca_cars")
         cars = st.session_state.cars
         if busca.strip():
             b = busca.lower()
             cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower() or b in c.fabricante.lower() or b in c.serie_tipo.lower()]
 
-        filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)))
+        filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)), key="filtro_serie")
         if filtro_serie != "Todas":
             cars = [c for c in cars if c.serie_tipo == filtro_serie]
 
-        ordem = st.selectbox("Ordenar por", [
+        ordem_opts = [
+            "Adição (recentes primeiro)", "Adição (antigos primeiro)",
             "Alfabética (A-Z)", "Alfabética (Z-A)",
             "Ano (crescente)", "Ano (decrescente)",
-            "Adição (recentes primeiro)", "Adição (antigos primeiro)",
             "Modificação (recentes primeiro)", "Modificação (antigos primeiro)",
-        ])
+        ]
+        ordem = st.selectbox("Ordenar por", ordem_opts, key="ordem_cars")
         match ordem:
             case "Alfabética (A-Z)":
                 cars = sorted(cars, key=lambda c: c.modelo.lower())

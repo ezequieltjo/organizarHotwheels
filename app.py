@@ -14,6 +14,7 @@ from visualizer import render_grid
 from color_utils import nome_para_hex
 from camera_component import render_color_picker
 import time
+import base64
 
 PHOTOS_DIR = Path(__file__).parent / "photos"
 PHOTOS_DIR.mkdir(exist_ok=True)
@@ -40,6 +41,12 @@ def refresh():
 if "cars" not in st.session_state:
     refresh()
 
+def _img_b64(path):
+    """Read image file, return base64 string."""
+    data = Path(path).read_bytes()
+    return base64.b64encode(data).decode()
+
+
 def _save_photo(photo_bytes, modelo):
     """Save photo to disk, return path."""
     ts = int(time.time() * 1000)
@@ -53,7 +60,7 @@ def _save_photo(photo_bytes, modelo):
 tab1, tab2, tab3 = st.tabs(["Coleção", "Expositores", "Organizar"])
 
 with tab1:
-    st.header("Coleção")
+    st.header(f"Coleção: {len(st.session_state.cars)} carrinhos")
 
     editing_id = st.session_state.get("editing_car_id")
     editing_car = None
@@ -71,10 +78,21 @@ with tab1:
             existing_fabricantes = sorted(set(c.fabricante for c in st.session_state.cars if c.fabricante))
             existing_series = sorted(set(c.serie_tipo for c in st.session_state.cars if c.serie_tipo))
 
+            # --- Live color for border preview ---
+            live_color = (
+                st.session_state.get("_pending_picker_color")
+                or st.session_state.get("cor_picker_edit")
+                or editing_car.cor_hex
+                or "#808080"
+            )
+
             # --- Photo capture (outside form) ---
             st.markdown("**Foto do carro**")
             if editing_car.foto_path and Path(editing_car.foto_path).exists():
-                st.image(editing_car.foto_path, width=200)
+                st.markdown(
+                    f"<div style='border:4px solid {live_color};border-radius:8px;overflow:hidden;display:inline-block'>"
+                    f"<img src='data:image/jpeg;base64,{_img_b64(editing_car.foto_path)}' style='width:200px;height:auto;display:block'></div>",
+                    unsafe_allow_html=True)
             pc1, pc2 = st.columns(2)
             with pc1:
                 camera_photo = st.camera_input("📷 Tirar Foto", key="cam_edit")
@@ -91,7 +109,11 @@ with tab1:
             picker_color = None
             if st.session_state.get("_pending_photo"):
                 st.markdown("**Clique na foto para selecionar a cor**")
-                picker_color = render_color_picker(st.session_state._pending_photo, key="picker_edit")
+                picker_color = render_color_picker(
+                    st.session_state._pending_photo,
+                    bridge_key="__bridge_edit__",
+                    key="picker_edit",
+                )
                 if picker_color:
                     st.session_state._pending_picker_color = picker_color
 
@@ -120,6 +142,7 @@ with tab1:
                 if cancel:
                     st.session_state.pop("_pending_photo", None)
                     st.session_state.pop("_pending_picker_color", None)
+                    st.session_state.pop("_cpicker_picker_edit", None)
                     del st.session_state.editing_car_id
                     st.rerun()
                 if save:
@@ -146,6 +169,7 @@ with tab1:
                         update_car(editing_car)
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
+                        st.session_state.pop("_cpicker_picker_edit", None)
                         del st.session_state.editing_car_id
                         refresh()
                         st.session_state._car_toast_msg = "Carro editado com sucesso!"
@@ -173,11 +197,13 @@ with tab1:
             picker_color = None
             if st.session_state.get("_pending_photo"):
                 st.markdown("**Clique na foto para selecionar a cor**")
-                picker_color = render_color_picker(st.session_state._pending_photo, key="picker_add")
+                picker_color = render_color_picker(
+                    st.session_state._pending_photo,
+                    bridge_key="__bridge_add__",
+                    key="picker_add",
+                )
                 if picker_color:
                     st.session_state._pending_picker_color = picker_color
-
-            # --- Form (no photo uploader) ---
             with st.form("add_car"):
                 modelo = st.text_input("Modelo")
                 marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
@@ -211,6 +237,7 @@ with tab1:
                         ))
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
+                        st.session_state.pop("_cpicker_picker_add", None)
                         refresh()
                         st.session_state._car_toast_msg = "Carro adicionado com sucesso!"
                         st.session_state.car_toast = True
@@ -257,7 +284,10 @@ with tab1:
                 col1, col2, col3 = st.columns([1, 6, 2])
                 with col1:
                     if car.foto_path and Path(car.foto_path).exists():
-                        st.image(car.foto_path, width=60)
+                        st.markdown(
+                            f"<div style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:60px;height:45px'>"
+                            f"<img src='data:image/jpeg;base64,{_img_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",
+                            unsafe_allow_html=True)
                     else:
                         st.markdown(f"<div style='width:60px;height:45px;background:{car.cor_hex};border-radius:4px'></div>",
                                     unsafe_allow_html=True)

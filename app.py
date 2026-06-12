@@ -79,9 +79,9 @@ with tab1:
             existing_series = sorted(set(c.serie_tipo for c in st.session_state.cars if c.serie_tipo))
 
             # --- Live color for border preview ---
+            _cor_key = f"_cpe_{editing_car.id}"
             live_color = (
-                st.session_state.get("_pending_picker_color")
-                or st.session_state.get("cor_picker_edit")
+                st.session_state.get(_cor_key)
                 or editing_car.cor_hex
                 or "#808080"
             )
@@ -106,16 +106,14 @@ with tab1:
                 st.session_state.setdefault("_pending_photo", Path(editing_car.foto_path).read_bytes())
 
             # --- Color picker ---
-            picker_color = None
             if st.session_state.get("_pending_photo"):
                 st.markdown("**Clique na foto para selecionar a cor**")
-                picker_color = render_color_picker(
+                render_color_picker(
                     st.session_state._pending_photo,
                     bridge_key="__bridge_edit__",
                     key="picker_edit",
+                    cor_key=_cor_key,
                 )
-                if picker_color:
-                    st.session_state._pending_picker_color = picker_color
 
             # --- Form ---
             with st.form("edit_car"):
@@ -134,8 +132,8 @@ with tab1:
                 serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_edit")
                 ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
                 cor = st.text_input("Cor (nome ou #hex)", value=editing_car.cor, placeholder="deixe vazio para usar o seletor")
-                default_color = st.session_state.get("_pending_picker_color") or editing_car.cor_hex or "#808080"
-                cor_picker = st.color_picker("Seletor de cor", value=default_color, key="cor_picker_edit")
+                default_color = st.session_state.get(_cor_key) or editing_car.cor_hex or "#808080"
+                cor_picker = st.color_picker("Seletor de cor", value=default_color, key=_cor_key)
                 bc1, bc2 = st.columns(2)
                 save = bc1.form_submit_button("Salvar")
                 cancel = bc2.form_submit_button("Cancelar")
@@ -153,7 +151,7 @@ with tab1:
                         if cor.strip():
                             cor_hex = nome_para_hex(cor.strip())
                         else:
-                            cor_hex = st.session_state.get("_pending_picker_color") or cor_picker.upper()
+                            cor_hex = cor_picker.upper()
                             cor = ""
                         foto_path = editing_car.foto_path
                         if st.session_state.get("_pending_photo"):
@@ -194,16 +192,14 @@ with tab1:
                 st.session_state._pending_photo = source.getvalue()
 
             # --- Color picker ---
-            picker_color = None
             if st.session_state.get("_pending_photo"):
                 st.markdown("**Clique na foto para selecionar a cor**")
-                picker_color = render_color_picker(
+                render_color_picker(
                     st.session_state._pending_photo,
                     bridge_key="__bridge_add__",
                     key="picker_add",
+                    cor_key="cor_picker_add",
                 )
-                if picker_color:
-                    st.session_state._pending_picker_color = picker_color
             with st.form("add_car"):
                 modelo = st.text_input("Modelo")
                 marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
@@ -214,7 +210,7 @@ with tab1:
                 serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_add")
                 ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
                 cor = st.text_input("Cor (nome ou #hex)", placeholder="deixe vazio para usar o seletor")
-                default_color = st.session_state.get("_pending_picker_color") or "#808080"
+                default_color = st.session_state.get("cor_picker_add") or "#808080"
                 cor_picker = st.color_picker("Seletor de cor", value=default_color, key="cor_picker_add")
                 if st.form_submit_button("Adicionar"):
                     marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
@@ -224,7 +220,7 @@ with tab1:
                         if cor.strip():
                             cor_hex = nome_para_hex(cor.strip())
                         else:
-                            cor_hex = st.session_state.get("_pending_picker_color") or cor_picker.upper()
+                            cor_hex = cor_picker.upper()
                             cor = ""
                         foto_path = ""
                         if st.session_state.get("_pending_photo"):
@@ -238,6 +234,7 @@ with tab1:
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
                         st.session_state.pop("_cpicker_picker_add", None)
+                        st.session_state.pop("cor_picker_add", None)
                         refresh()
                         st.session_state._car_toast_msg = "Carro adicionado com sucesso!"
                         st.session_state.car_toast = True
@@ -305,6 +302,7 @@ with tab1:
                         st.session_state.editing_car_id = car.id
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
+                        st.session_state.pop("_cpicker_picker_edit", None)
                         st.rerun()
                     if bc3.button("🗑️", key=f"del_{car.id}"):
                         st.session_state.pop("_pending_photo", None)

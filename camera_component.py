@@ -27,7 +27,7 @@ def extract_colors(photo_bytes: bytes, n: int = 8) -> list[str]:
     return [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in result]
 
 
-def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "color_picker") -> str | None:
+def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "color_picker", cor_key: str = None) -> str | None:
     """Show extracted colors from photo as clickable swatches."""
     state_key = f"_cpicker_{key}"
 
@@ -51,10 +51,8 @@ def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "
             )
             if st.button("Usar", key=f"_cpick_{key}_{i}", use_container_width=True):
                 st.session_state[state_key] = hex_c
-                if key == "picker_edit":
-                    st.session_state["cor_picker_edit"] = hex_c
-                elif key == "picker_add":
-                    st.session_state["cor_picker_add"] = hex_c
+                if cor_key:
+                    st.session_state[cor_key] = hex_c
                 st.rerun()
 
     return st.session_state.get(state_key)

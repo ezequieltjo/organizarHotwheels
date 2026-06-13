@@ -82,3 +82,52 @@ def test_set_idempotent():
     set_disabled_slot(sid, 2, None)
     result = get_disabled_slots(sid)
     assert result["rows"] == {2}
+
+
+def test_prune_removes_rows_beyond_new_linhas():
+    sid = _make_shelf(linhas=4, colunas=10)
+    set_disabled_slot(sid, 3, None)  # row 3
+    set_disabled_slot(sid, 0, None)  # row 0
+    prune_disabled_slots(sid, 2, 10)  # shrink to 2 rows
+    result = get_disabled_slots(sid)
+    assert result["rows"] == {0}  # row 3 removed
+
+
+def test_prune_removes_cells_beyond_new_dims():
+    sid = _make_shelf(linhas=4, colunas=10)
+    set_disabled_slot(sid, 1, 9)   # col 9 (out when colunas=5)
+    set_disabled_slot(sid, 3, 2)   # row 3 (out when linhas=2)
+    set_disabled_slot(sid, 1, 2)   # keep
+    prune_disabled_slots(sid, 2, 5)
+    result = get_disabled_slots(sid)
+    assert result["cells"] == {(1, 2)}
+
+
+def test_update_shelf_calls_prune():
+    """update_shelf should auto-prune disabled slots when shelf shrinks."""
+    from models import ShelfConfig
+    from storage import insert_shelf, update_shelf, get_shelf_by_id, get_disabled_slots
+    sid = insert_shelf(ShelfConfig(nome="P1", linhas=4, colunas=10))
+    set_disabled_slot(sid, 3, None)
+    set_disabled_slot(sid, 1, 8)
+    shelf = get_shelf_by_id(sid)
+    shelf.linhas = 2
+    shelf.colunas = 5
+    update_shelf(shelf)
+    result = get_disabled_slots(sid)
+    assert result["rows"] == set()       # row 3 pruned
+    assert result["cells"] == set()      # col 8 pruned
+
+
+def test_delete_shelf_cascades():
+    """Deleting shelf removes its disabled_slots via FK cascade."""
+    from models import ShelfConfig
+    from storage import insert_shelf, delete_shelf, get_connection
+    sid = insert_shelf(ShelfConfig(nome="P1", linhas=4, colunas=10))
+    set_disabled_slot(sid, 0, None)
+    set_disabled_slot(sid, 1, 2)
+    delete_shelf(sid)
+    conn = get_connection()
+    count = conn.execute("SELECT COUNT(*) FROM disabled_slots WHERE shelf_id=?", (sid,)).fetchone()[0]
+    conn.close()
+    assert count == 0

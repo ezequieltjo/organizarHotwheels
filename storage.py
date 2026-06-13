@@ -63,6 +63,7 @@ def get_connection():
         path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -190,6 +191,7 @@ def update_shelf(shelf: ShelfConfig) -> None:
         (shelf.nome, shelf.linhas, shelf.colunas, shelf.parede_linha, shelf.parede_coluna, shelf.id))
     conn.commit()
     conn.close()
+    prune_disabled_slots(shelf.id, shelf.linhas, shelf.colunas)
 
 
 def delete_shelf(shelf_id: int) -> None:

@@ -6,7 +6,7 @@ from color_utils import hex_para_hue, hex_para_rgb, distancia_rgb
 # assignment = {car_id: (shelf_id, row, col)}
 
 
-def _is_blocked(shelf_id, row, col, disabled) -> bool:
+def _is_blocked(shelf_id: int, row: int, col: int, disabled: dict | None) -> bool:
     if not disabled:
         return False
     d = disabled.get(shelf_id)
@@ -53,7 +53,7 @@ def organize_favorites_first(cars: list[Car], shelves: list[ShelfConfig], wall: 
     return _dispatch_fill(favs + rest, shelves, wall)
 
 
-def total_slots(shelves: list[ShelfConfig], disabled: dict = None) -> int:
+def total_slots(shelves: list[ShelfConfig], disabled: dict | None = None) -> int:
     total = sum(s.linhas * s.colunas for s in shelves)
     if not disabled:
         return total

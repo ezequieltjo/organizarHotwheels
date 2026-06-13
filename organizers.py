@@ -15,14 +15,21 @@ def _is_blocked(shelf_id: int, row: int, col: int, disabled: dict | None) -> boo
     return row in d["rows"] or (row, col) in d["cells"]
 
 
+def _filter_reserva(cars: list[Car]) -> list[Car]:
+    """Exclui carros marcados como reserva da organizacao."""
+    return [c for c in cars if not c.reserva]
+
+
 def organize_rainbow(cars: list[Car], shelves: list[ShelfConfig],
                      wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    cars = _filter_reserva(cars)
     sorted_cars = sorted(cars, key=lambda c: hex_para_hue(c.cor_hex))
     return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
 def organize_gradient(cars: list[Car], shelves: list[ShelfConfig],
                       wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    cars = _filter_reserva(cars)
     if not cars:
         return {}
     return _gradient_2d_fill(cars, shelves, wall, disabled)
@@ -30,24 +37,28 @@ def organize_gradient(cars: list[Car], shelves: list[ShelfConfig],
 
 def organize_by_brand(cars: list[Car], shelves: list[ShelfConfig],
                      wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    cars = _filter_reserva(cars)
     sorted_cars = sorted(cars, key=lambda c: (c.marca, c.cor))
     return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
 def organize_by_fabricante(cars: list[Car], shelves: list[ShelfConfig],
                            wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    cars = _filter_reserva(cars)
     sorted_cars = sorted(cars, key=lambda c: (c.fabricante, c.cor))
     return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
 def organize_by_year(cars: list[Car], shelves: list[ShelfConfig],
                     wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    cars = _filter_reserva(cars)
     sorted_cars = sorted(cars, key=lambda c: c.ano)
     return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
 def organize_random(cars: list[Car], shelves: list[ShelfConfig],
                     wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    cars = _filter_reserva(cars)
     shuffled = list(cars)
     random.shuffle(shuffled)
     return _dispatch_fill(shuffled, shelves, wall, disabled)
@@ -55,6 +66,7 @@ def organize_random(cars: list[Car], shelves: list[ShelfConfig],
 
 def organize_favorites_first(cars: list[Car], shelves: list[ShelfConfig],
                              wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    cars = _filter_reserva(cars)
     favs = [c for c in cars if c.favorito]
     rest = [c for c in cars if not c.favorito]
     return _dispatch_fill(favs + rest, shelves, wall, disabled)

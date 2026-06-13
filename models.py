@@ -13,6 +13,7 @@ class Car:
     cor_hex: str = ""
     serie_tipo: str = ""
     favorito: bool = False
+    reserva: bool = False
     foto_path: str = ""
     expositor_id: Optional[int] = None
     posicao_linha: Optional[int] = None

@@ -6,7 +6,8 @@ from models import Car, ShelfConfig, ParedeConfig
 from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      insert_shelf, get_all_shelves, update_shelf, delete_shelf,
                      clear_positions, apply_positions, get_wall_config, save_wall_config,
-                     get_all_disabled_slots, get_disabled_slots, replace_disabled_slots)
+                     get_all_disabled_slots, get_disabled_slots, replace_disabled_slots,
+                     set_reserva)
 from importer import import_file
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
@@ -136,6 +137,7 @@ with tab1:
                 cor = st.text_input("Cor (nome ou #hex)", value=editing_car.cor, placeholder="deixe vazio para usar o seletor")
                 default_color = st.session_state.get(_cor_key) or editing_car.cor_hex or "#808080"
                 cor_picker = st.color_picker("Seletor de cor", value=default_color, key=_cor_key)
+                reserva_edit = st.checkbox("Reserva (não posicionar em expositor)", value=editing_car.reserva)
                 bc1, bc2 = st.columns(2)
                 save = bc1.form_submit_button("Salvar")
                 cancel = bc2.form_submit_button("Cancelar")
@@ -166,7 +168,12 @@ with tab1:
                         editing_car.cor_hex = cor_hex
                         editing_car.serie_tipo = serie
                         editing_car.foto_path = foto_path
-                        update_car(editing_car)
+                        editing_car.reserva = reserva_edit
+                        if reserva_edit and editing_car.expositor_id is not None:
+                            update_car(editing_car)
+                            set_reserva(editing_car.id, True)  # atomic clear of position
+                        else:
+                            update_car(editing_car)
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
                         st.session_state.pop("_cpicker_picker_edit", None)
@@ -214,6 +221,7 @@ with tab1:
                 cor = st.text_input("Cor (nome ou #hex)", placeholder="deixe vazio para usar o seletor")
                 default_color = st.session_state.get("cor_picker_add") or "#808080"
                 cor_picker = st.color_picker("Seletor de cor", value=default_color, key="cor_picker_add")
+                reserva_add = st.checkbox("Reserva (não posicionar em expositor)", value=False)
                 if st.form_submit_button("Adicionar"):
                     marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
                     fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
@@ -231,7 +239,8 @@ with tab1:
                             modelo=modelo.strip(), marca=marca,
                             fabricante=fabricante, ano=ano,
                             cor=cor.strip(), cor_hex=cor_hex, serie_tipo=serie,
-                            foto_path=foto_path
+                            foto_path=foto_path,
+                            reserva=reserva_add,
                         ))
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
@@ -292,21 +301,27 @@ with tab1:
                                     unsafe_allow_html=True)
                 with col2:
                     fav = "★ " if car.favorito else ""
-                    st.write(f"**{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
+                    reserva_marker = "📦 " if car.reserva else ""
+                    st.write(f"**{reserva_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
                 with col3:
-                    bc1, bc2, bc3 = st.columns(3)
+                    bc1, bc2, bc3, bc4 = st.columns(4)
                     if bc1.button("⭐", key=f"fav_{car.id}"):
                         car.favorito = not car.favorito
                         update_car(car)
                         refresh()
                         st.rerun()
-                    if bc2.button("✏️", key=f"edit_{car.id}"):
+                    if bc2.button("📦" if car.reserva else "📭", key=f"reserva_{car.id}",
+                                  help="Marcar/desmarcar reserva (não posicionar)"):
+                        set_reserva(car.id, not car.reserva)
+                        refresh()
+                        st.rerun()
+                    if bc3.button("✏️", key=f"edit_{car.id}"):
                         st.session_state.editing_car_id = car.id
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
                         st.session_state.pop("_cpicker_picker_edit", None)
                         st.rerun()
-                    if bc3.button("🗑️", key=f"del_{car.id}"):
+                    if bc4.button("🗑️", key=f"del_{car.id}"):
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
                         delete_car(car.id)
@@ -426,9 +441,13 @@ with tab3:
         st.warning("Adicione carros à coleção primeiro.")
     else:
         disabled = st.session_state.disabled
+        active_cars = [c for c in cars if not c.reserva]
         slots = total_slots(shelves, disabled)
-        if len(cars) > slots:
-            st.warning(f"{len(cars)} carros mas apenas {slots} vagas (após bloqueios). Alguns não serão posicionados.")
+        if len(active_cars) > slots:
+            n_reservas = len(cars) - len(active_cars)
+            reserva_note = f" ({n_reservas} reservas)" if n_reservas > 0 else ""
+            st.warning(f"{len(active_cars)} carros ativos mas apenas {slots} vagas{reserva_note}. "
+                       f"Alguns não serão posicionados.")
 
         modo = st.selectbox("Modo de organização", list(ORGANIZERS.keys()))
 
@@ -518,7 +537,7 @@ st.html(f"""<script>
   function markButtons(){{
     d.querySelectorAll('button').forEach(function(b){{
       var t=b.textContent.trim();
-      if((t==='⭐'||t==='✏️'||t==='🗑️')&&b.closest('[data-testid="stColumn"]')){{
+      if((t==='⭐'||t==='📦'||t==='📭'||t==='✏️'||t==='🗑️')&&b.closest('[data-testid="stColumn"]')){{
         b.closest('[data-testid="stColumn"]').classList.add('car-action-col');
       }}
     }});

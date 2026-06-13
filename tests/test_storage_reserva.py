@@ -73,3 +73,54 @@ def test_set_reserva_false_when_already_false():
     set_reserva(cid, False)
     refreshed = get_car_by_id(cid)
     assert refreshed.reserva is False
+
+
+def test_migration_adds_reserva_column():
+    """init_db adds reserva column to existing DB without it."""
+    import sqlite3
+    from storage import set_db_path, init_db, get_connection
+    from pathlib import Path
+
+    # Create old-style DB without reserva column
+    old_db = Path(__file__).parent / "_old_test.db"
+    if old_db.exists():
+        old_db.unlink()
+    set_db_path(old_db)
+    conn = sqlite3.connect(str(old_db))
+    conn.execute("""CREATE TABLE cars (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        modelo TEXT NOT NULL,
+        marca TEXT NOT NULL DEFAULT '',
+        fabricante TEXT NOT NULL DEFAULT '',
+        ano INTEGER NOT NULL DEFAULT 0,
+        cor TEXT NOT NULL DEFAULT '',
+        cor_hex TEXT NOT NULL DEFAULT '',
+        serie_tipo TEXT NOT NULL DEFAULT '',
+        favorito INTEGER NOT NULL DEFAULT 0,
+        foto_path TEXT NOT NULL DEFAULT '',
+        expositor_id INTEGER,
+        posicao_linha INTEGER,
+        posicao_coluna INTEGER,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
+    )""")
+    conn.execute("INSERT INTO cars (modelo) VALUES ('Old')")
+    conn.commit()
+    conn.close()
+
+    # Run init_db (migration)
+    init_db()
+
+    # Verify column added and existing data preserved
+    conn = get_connection()
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(cars)").fetchall()]
+    rows = conn.execute("SELECT modelo, reserva FROM cars").fetchall()
+    conn.close()
+
+    set_db_path(None)
+    old_db.unlink()
+
+    assert "reserva" in cols
+    assert len(rows) == 1
+    assert rows[0]["modelo"] == "Old"
+    assert rows[0]["reserva"] == 0

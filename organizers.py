@@ -84,7 +84,7 @@ def _dispatch_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConf
     return _fill_grid(cars, shelves, disabled)
 
 
-def _fill_wall_grid(cars: list[Car], shelves: list[Car], wall: ParedeConfig,
+def _fill_wall_grid(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig,
                     disabled: dict | None = None) -> dict:
     # Build grid: wall_grid[r][c] = shelf or None
     wall_grid = [[None] * wall.colunas for _ in range(wall.linhas)]

@@ -6,55 +6,86 @@ from color_utils import hex_para_hue, hex_para_rgb, distancia_rgb
 # assignment = {car_id: (shelf_id, row, col)}
 
 
-def organize_rainbow(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def _is_blocked(shelf_id: int, row: int, col: int, disabled: dict | None) -> bool:
+    if not disabled:
+        return False
+    d = disabled.get(shelf_id)
+    if not d:
+        return False
+    return row in d["rows"] or (row, col) in d["cells"]
+
+
+def organize_rainbow(cars: list[Car], shelves: list[ShelfConfig],
+                     wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
     sorted_cars = sorted(cars, key=lambda c: hex_para_hue(c.cor_hex))
-    return _dispatch_fill(sorted_cars, shelves, wall)
+    return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
-def organize_gradient(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def organize_gradient(cars: list[Car], shelves: list[ShelfConfig],
+                      wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
     if not cars:
         return {}
-    return _gradient_2d_fill(cars, shelves, wall)
+    return _gradient_2d_fill(cars, shelves, wall, disabled)
 
 
-def organize_by_brand(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def organize_by_brand(cars: list[Car], shelves: list[ShelfConfig],
+                     wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
     sorted_cars = sorted(cars, key=lambda c: (c.marca, c.cor))
-    return _dispatch_fill(sorted_cars, shelves, wall)
+    return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
-def organize_by_fabricante(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def organize_by_fabricante(cars: list[Car], shelves: list[ShelfConfig],
+                           wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
     sorted_cars = sorted(cars, key=lambda c: (c.fabricante, c.cor))
-    return _dispatch_fill(sorted_cars, shelves, wall)
+    return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
-def organize_by_year(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def organize_by_year(cars: list[Car], shelves: list[ShelfConfig],
+                    wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
     sorted_cars = sorted(cars, key=lambda c: c.ano)
-    return _dispatch_fill(sorted_cars, shelves, wall)
+    return _dispatch_fill(sorted_cars, shelves, wall, disabled)
 
 
-def organize_random(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def organize_random(cars: list[Car], shelves: list[ShelfConfig],
+                    wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
     shuffled = list(cars)
     random.shuffle(shuffled)
-    return _dispatch_fill(shuffled, shelves, wall)
+    return _dispatch_fill(shuffled, shelves, wall, disabled)
 
 
-def organize_favorites_first(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def organize_favorites_first(cars: list[Car], shelves: list[ShelfConfig],
+                             wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
     favs = [c for c in cars if c.favorito]
     rest = [c for c in cars if not c.favorito]
-    return _dispatch_fill(favs + rest, shelves, wall)
+    return _dispatch_fill(favs + rest, shelves, wall, disabled)
 
 
-def total_slots(shelves: list[ShelfConfig]) -> int:
-    return sum(s.linhas * s.colunas for s in shelves)
+def total_slots(shelves: list[ShelfConfig], disabled: dict | None = None) -> int:
+    total = sum(s.linhas * s.colunas for s in shelves)
+    if not disabled:
+        return total
+    blocked = 0
+    for s in shelves:
+        d = disabled.get(s.id)
+        if not d:
+            continue
+        for row in range(s.linhas):
+            if row in d["rows"]:
+                blocked += s.colunas
+                continue
+            blocked += sum(1 for col in range(s.colunas) if (row, col) in d["cells"])
+    return total - blocked
 
 
-def _dispatch_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def _dispatch_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,
+                   disabled: dict | None = None) -> dict:
     if wall and (wall.linhas > 1 or wall.colunas > 1):
-        return _fill_wall_grid(cars, shelves, wall)
-    return _fill_grid(cars, shelves)
+        return _fill_wall_grid(cars, shelves, wall, disabled)
+    return _fill_grid(cars, shelves, disabled)
 
 
-def _fill_wall_grid(cars: list[Car], shelves: list[Car], wall: ParedeConfig) -> dict:
+def _fill_wall_grid(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig,
+                    disabled: dict | None = None) -> dict:
     # Build grid: wall_grid[r][c] = shelf or None
     wall_grid = [[None] * wall.colunas for _ in range(wall.linhas)]
     for shelf in shelves:
@@ -77,6 +108,8 @@ def _fill_wall_grid(cars: list[Car], shelves: list[Car], wall: ParedeConfig) -> 
                 n = shelf.colunas
                 cols = range(n) if global_row % 2 == 0 else range(n - 1, -1, -1)
                 for col in cols:
+                    if _is_blocked(shelf.id, shelf_row, col, disabled):
+                        continue
                     if idx >= len(cars):
                         return assignment
                     assignment[cars[idx].id] = (shelf.id, shelf_row, col)
@@ -85,13 +118,15 @@ def _fill_wall_grid(cars: list[Car], shelves: list[Car], wall: ParedeConfig) -> 
     return assignment
 
 
-def _fill_grid(cars: list[Car], shelves: list[ShelfConfig]) -> dict:
+def _fill_grid(cars: list[Car], shelves: list[ShelfConfig], disabled: dict | None = None) -> dict:
     assignment = {}
     idx = 0
     for shelf in shelves:
         for row in range(shelf.linhas):
             cols = range(shelf.colunas) if row % 2 == 0 else range(shelf.colunas - 1, -1, -1)
             for col in cols:
+                if _is_blocked(shelf.id, row, col, disabled):
+                    continue
                 if idx >= len(cars):
                     return assignment
                 assignment[cars[idx].id] = (shelf.id, row, col)
@@ -116,9 +151,10 @@ def _hex_to_hsv(hex_color: str) -> tuple[float, float, float]:
     return colorsys.rgb_to_hsv(r, g, b)
 
 
-def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
+def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,
+                      disabled: dict | None = None) -> dict:
     # Build slot list: (shelf_id, shelf_row, shelf_col, global_row, global_col)
-    slots = _build_slot_list(shelves, wall)
+    slots = _build_slot_list(shelves, wall, disabled)
     if not slots:
         return {}
 
@@ -207,7 +243,8 @@ def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeC
     return assignment
 
 
-def _build_slot_list(shelves: list[ShelfConfig], wall: ParedeConfig = None) -> list[tuple]:
+def _build_slot_list(shelves: list[ShelfConfig], wall: ParedeConfig = None,
+                     disabled: dict | None = None) -> list[tuple]:
     """Returns [(shelf_id, shelf_row, shelf_col, global_row, global_col), ...]"""
     if wall and (wall.linhas > 1 or wall.colunas > 1):
         wall_grid = [[None] * wall.colunas for _ in range(wall.linhas)]
@@ -245,6 +282,8 @@ def _build_slot_list(shelves: list[ShelfConfig], wall: ParedeConfig = None) -> l
                 for col in range(shelf.colunas):
                     slots.append((shelf.id, row, col, global_row, col))
                 global_row += 1
+    if disabled:
+        slots = [s for s in slots if not _is_blocked(s[0], s[1], s[2], disabled)]
     return slots
 
 

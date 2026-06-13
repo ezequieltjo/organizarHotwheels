@@ -5,7 +5,8 @@ st.set_page_config(layout="wide")
 from models import Car, ShelfConfig, ParedeConfig
 from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      insert_shelf, get_all_shelves, update_shelf, delete_shelf,
-                     clear_positions, apply_positions, get_wall_config, save_wall_config)
+                     clear_positions, apply_positions, get_wall_config, save_wall_config,
+                     get_all_disabled_slots, get_disabled_slots, replace_disabled_slots)
 from importer import import_file
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
@@ -36,6 +37,7 @@ def refresh():
     st.session_state.cars = get_all_cars()
     st.session_state.shelves = get_all_shelves()
     st.session_state.wall = get_wall_config()
+    st.session_state.disabled = get_all_disabled_slots()
 
 
 if "cars" not in st.session_state:
@@ -368,6 +370,37 @@ with tab2:
                         refresh()
                         st.rerun()
 
+                # Vagas bloqueadas
+                current = get_disabled_slots(shelf.id)
+                st.markdown("**Vagas bloqueadas**")
+
+                with st.form(f"block_form_{shelf.id}"):
+                    row_options = list(range(shelf.linhas))
+                    selected_rows = st.multiselect(
+                        "Linhas bloqueadas (inteiras)",
+                        options=row_options,
+                        default=sorted(current["rows"]),
+                        format_func=lambda r: f"Linha {r+1}",
+                        key=f"block_rows_{shelf.id}",
+                    )
+
+                    cell_options = [(r, c) for r in range(shelf.linhas) if r not in selected_rows
+                                    for c in range(shelf.colunas)]
+                    selected_cells = st.multiselect(
+                        "Células individuais",
+                        options=cell_options,
+                        default=[rc for rc in sorted(current["cells"])
+                                 if rc[0] not in current["rows"]],
+                        format_func=lambda rc: f"(L{rc[0]+1}, C{rc[1]+1})",
+                        key=f"block_cells_{shelf.id}",
+                    )
+
+                    if st.form_submit_button("Salvar bloqueio"):
+                        cells_to_set = [(r, c) for (r, c) in selected_cells if r not in selected_rows]
+                        replace_disabled_slots(shelf.id, selected_rows, cells_to_set)
+                        refresh()
+                        st.rerun()
+
     with ec2:
         shelves = st.session_state.shelves
         cars = st.session_state.cars
@@ -376,7 +409,7 @@ with tab2:
             if positioned:
                 assignment = {c.id: (c.expositor_id, c.posicao_linha, c.posicao_coluna)
                               for c in positioned}
-                fig = render_grid(assignment, cars, shelves, wall)
+                fig = render_grid(assignment, cars, shelves, wall, st.session_state.disabled)
                 st.plotly_chart(fig, use_container_width=True, key="grid_expositores")
             else:
                 st.info("Nenhum carro posicionado ainda. Use a aba Organizar.")
@@ -392,21 +425,22 @@ with tab3:
     elif not cars:
         st.warning("Adicione carros à coleção primeiro.")
     else:
-        slots = total_slots(shelves)
+        disabled = st.session_state.disabled
+        slots = total_slots(shelves, disabled)
         if len(cars) > slots:
-            st.warning(f"{len(cars)} carros mas apenas {slots} vagas. Alguns não serão posicionados.")
+            st.warning(f"{len(cars)} carros mas apenas {slots} vagas (após bloqueios). Alguns não serão posicionados.")
 
         modo = st.selectbox("Modo de organização", list(ORGANIZERS.keys()))
 
         if st.button("Gerar organização"):
             func = ORGANIZERS[modo]
-            assignment = func(cars, shelves, wall)
+            assignment = func(cars, shelves, wall, disabled)
             st.session_state.assignment = assignment
             st.rerun()
 
         if "assignment" in st.session_state and st.session_state.assignment:
             assignment = st.session_state.assignment
-            fig = render_grid(assignment, cars, shelves, wall)
+            fig = render_grid(assignment, cars, shelves, wall, disabled)
             st.plotly_chart(fig, use_container_width=True, key="grid_organizar")
 
             st.subheader("Posições")

@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS wall_config (
     linhas INTEGER NOT NULL DEFAULT 1,
     colunas INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS disabled_slots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shelf_id INTEGER NOT NULL,
+    posicao_linha INTEGER NOT NULL,
+    posicao_coluna INTEGER,
+    UNIQUE(shelf_id, posicao_linha, posicao_coluna),
+    FOREIGN KEY(shelf_id) REFERENCES shelf_configs(id) ON DELETE CASCADE
+);
 """
 
 
@@ -54,6 +63,7 @@ def get_connection():
         path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -181,6 +191,7 @@ def update_shelf(shelf: ShelfConfig) -> None:
         (shelf.nome, shelf.linhas, shelf.colunas, shelf.parede_linha, shelf.parede_coluna, shelf.id))
     conn.commit()
     conn.close()
+    prune_disabled_slots(shelf.id, shelf.linhas, shelf.colunas)
 
 
 def delete_shelf(shelf_id: int) -> None:
@@ -195,6 +206,94 @@ def _row_to_shelf(row) -> ShelfConfig:
         id=row["id"], nome=row["nome"],
         linhas=row["linhas"], colunas=row["colunas"],
         parede_linha=row["parede_linha"], parede_coluna=row["parede_coluna"])
+
+
+# --- DisabledSlots CRUD ---
+
+def get_disabled_slots(shelf_id: int) -> dict:
+    """Returns {'rows': set[int], 'cells': set[tuple[int,int]]}."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT posicao_linha, posicao_coluna FROM disabled_slots WHERE shelf_id=?",
+        (shelf_id,)).fetchall()
+    conn.close()
+    out = {"rows": set(), "cells": set()}
+    for r in rows:
+        if r["posicao_coluna"] is None:
+            out["rows"].add(r["posicao_linha"])
+        else:
+            out["cells"].add((r["posicao_linha"], r["posicao_coluna"]))
+    return out
+
+
+def get_all_disabled_slots() -> dict[int, dict]:
+    """Returns {shelf_id: {'rows': set, 'cells': set}}."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT shelf_id, posicao_linha, posicao_coluna FROM disabled_slots").fetchall()
+    conn.close()
+    out = {}
+    for r in rows:
+        s = out.setdefault(r["shelf_id"], {"rows": set(), "cells": set()})
+        if r["posicao_coluna"] is None:
+            s["rows"].add(r["posicao_linha"])
+        else:
+            s["cells"].add((r["posicao_linha"], r["posicao_coluna"]))
+    return out
+
+
+def set_disabled_slot(shelf_id: int, row: int, col: int | None) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT OR IGNORE INTO disabled_slots (shelf_id, posicao_linha, posicao_coluna) VALUES (?, ?, ?)",
+        (shelf_id, row, col))
+    conn.commit()
+    conn.close()
+
+
+def unset_disabled_slot(shelf_id: int, row: int, col: int | None) -> None:
+    conn = get_connection()
+    conn.execute(
+        "DELETE FROM disabled_slots WHERE shelf_id=? AND posicao_linha=? AND "
+        "(posicao_coluna IS ? OR posicao_coluna=?)",
+        (shelf_id, row, col, col))
+    conn.commit()
+    conn.close()
+
+
+def clear_disabled_slots(shelf_id: int) -> None:
+    conn = get_connection()
+    conn.execute("DELETE FROM disabled_slots WHERE shelf_id=?", (shelf_id,))
+    conn.commit()
+    conn.close()
+
+
+def replace_disabled_slots(shelf_id: int, rows: list[int], cells: list[tuple[int, int]]) -> None:
+    """Atomically replace all disabled slots for a shelf."""
+    conn = get_connection()
+    conn.execute("DELETE FROM disabled_slots WHERE shelf_id=?", (shelf_id,))
+    for r in rows:
+        conn.execute(
+            "INSERT OR IGNORE INTO disabled_slots (shelf_id, posicao_linha, posicao_coluna) VALUES (?, ?, ?)",
+            (shelf_id, r, None))
+    for (r, c) in cells:
+        conn.execute(
+            "INSERT OR IGNORE INTO disabled_slots (shelf_id, posicao_linha, posicao_coluna) VALUES (?, ?, ?)",
+            (shelf_id, r, c))
+    conn.commit()
+    conn.close()
+
+
+def prune_disabled_slots(shelf_id: int, linhas: int, colunas: int) -> None:
+    """Remove bloqueios fora das dimensoes atuais da shelf."""
+    conn = get_connection()
+    conn.execute(
+        "DELETE FROM disabled_slots WHERE shelf_id=? AND "
+        "((posicao_coluna IS NULL AND posicao_linha >= ?) OR "
+        "(posicao_coluna IS NOT NULL AND (posicao_linha >= ? OR posicao_coluna >= ?)))",
+        (shelf_id, linhas, linhas, colunas))
+    conn.commit()
+    conn.close()
 
 
 # --- Position management ---

@@ -1,6 +1,7 @@
 from models import ShelfConfig
 from storage import (insert_shelf, get_disabled_slots, get_all_disabled_slots,
                      set_disabled_slot, unset_disabled_slot, clear_disabled_slots,
+                     replace_disabled_slots,
                      prune_disabled_slots, update_shelf, delete_shelf, get_shelf_by_id)
 
 
@@ -131,3 +132,25 @@ def test_delete_shelf_cascades():
     count = conn.execute("SELECT COUNT(*) FROM disabled_slots WHERE shelf_id=?", (sid,)).fetchone()[0]
     conn.close()
     assert count == 0
+
+
+def test_replace_disabled_slots_atomic():
+    """replace_disabled_slots wipes existing and sets new in single transaction."""
+    sid = _make_shelf()
+    set_disabled_slot(sid, 0, None)
+    set_disabled_slot(sid, 1, 2)
+    # Replace with new set
+    replace_disabled_slots(sid, [2, 3], [(1, 1)])
+    result = get_disabled_slots(sid)
+    assert result["rows"] == {2, 3}
+    assert result["cells"] == {(1, 1)}
+
+
+def test_replace_disabled_slots_empty():
+    """replace_disabled_slots with empty lists clears all."""
+    sid = _make_shelf()
+    set_disabled_slot(sid, 0, None)
+    set_disabled_slot(sid, 1, 2)
+    replace_disabled_slots(sid, [], [])
+    result = get_disabled_slots(sid)
+    assert result == {"rows": set(), "cells": set()}

@@ -268,6 +268,22 @@ def clear_disabled_slots(shelf_id: int) -> None:
     conn.close()
 
 
+def replace_disabled_slots(shelf_id: int, rows: list[int], cells: list[tuple[int, int]]) -> None:
+    """Atomically replace all disabled slots for a shelf."""
+    conn = get_connection()
+    conn.execute("DELETE FROM disabled_slots WHERE shelf_id=?", (shelf_id,))
+    for r in rows:
+        conn.execute(
+            "INSERT OR IGNORE INTO disabled_slots (shelf_id, posicao_linha, posicao_coluna) VALUES (?, ?, ?)",
+            (shelf_id, r, None))
+    for (r, c) in cells:
+        conn.execute(
+            "INSERT OR IGNORE INTO disabled_slots (shelf_id, posicao_linha, posicao_coluna) VALUES (?, ?, ?)",
+            (shelf_id, r, c))
+    conn.commit()
+    conn.close()
+
+
 def prune_disabled_slots(shelf_id: int, linhas: int, colunas: int) -> None:
     """Remove bloqueios fora das dimensoes atuais da shelf."""
     conn = get_connection()

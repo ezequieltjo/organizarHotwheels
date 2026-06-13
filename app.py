@@ -7,7 +7,7 @@ from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      insert_shelf, get_all_shelves, update_shelf, delete_shelf,
                      clear_positions, apply_positions, get_wall_config, save_wall_config,
                      get_all_disabled_slots, get_disabled_slots, set_disabled_slot,
-                     clear_disabled_slots)
+                     clear_disabled_slots, replace_disabled_slots)
 from importer import import_file
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
@@ -375,35 +375,32 @@ with tab2:
                 current = get_disabled_slots(shelf.id)
                 st.markdown("**Vagas bloqueadas**")
 
-                row_options = list(range(shelf.linhas))
-                selected_rows = st.multiselect(
-                    "Linhas bloqueadas (inteiras)",
-                    options=row_options,
-                    default=sorted(current["rows"]),
-                    format_func=lambda r: f"Linha {r+1}",
-                    key=f"block_rows_{shelf.id}",
-                )
+                with st.form(f"block_form_{shelf.id}"):
+                    row_options = list(range(shelf.linhas))
+                    selected_rows = st.multiselect(
+                        "Linhas bloqueadas (inteiras)",
+                        options=row_options,
+                        default=sorted(current["rows"]),
+                        format_func=lambda r: f"Linha {r+1}",
+                        key=f"block_rows_{shelf.id}",
+                    )
 
-                cell_options = [(r, c) for r in range(shelf.linhas)
-                                for c in range(shelf.colunas)]
-                selected_cells = st.multiselect(
-                    "Células individuais",
-                    options=cell_options,
-                    default=[rc for rc in sorted(current["cells"])
-                             if rc[0] not in current["rows"]],
-                    format_func=lambda rc: f"(L{rc[0]+1}, C{rc[1]+1})",
-                    key=f"block_cells_{shelf.id}",
-                )
+                    cell_options = [(r, c) for r in range(shelf.linhas) if r not in selected_rows
+                                    for c in range(shelf.colunas)]
+                    selected_cells = st.multiselect(
+                        "Células individuais",
+                        options=cell_options,
+                        default=[rc for rc in sorted(current["cells"])
+                                 if rc[0] not in current["rows"]],
+                        format_func=lambda rc: f"(L{rc[0]+1}, C{rc[1]+1})",
+                        key=f"block_cells_{shelf.id}",
+                    )
 
-                if st.button("Salvar bloqueio", key=f"save_block_{shelf.id}"):
-                    clear_disabled_slots(shelf.id)
-                    for r in selected_rows:
-                        set_disabled_slot(shelf.id, r, None)
-                    for (r, c) in selected_cells:
-                        if r not in selected_rows:
-                            set_disabled_slot(shelf.id, r, c)
-                    refresh()
-                    st.rerun()
+                    if st.form_submit_button("Salvar bloqueio"):
+                        cells_to_set = [(r, c) for (r, c) in selected_cells if r not in selected_rows]
+                        replace_disabled_slots(shelf.id, selected_rows, cells_to_set)
+                        refresh()
+                        st.rerun()
 
     with ec2:
         shelves = st.session_state.shelves

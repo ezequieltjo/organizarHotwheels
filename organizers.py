@@ -6,6 +6,15 @@ from color_utils import hex_para_hue, hex_para_rgb, distancia_rgb
 # assignment = {car_id: (shelf_id, row, col)}
 
 
+def _is_blocked(shelf_id, row, col, disabled) -> bool:
+    if not disabled:
+        return False
+    d = disabled.get(shelf_id)
+    if not d:
+        return False
+    return row in d["rows"] or (row, col) in d["cells"]
+
+
 def organize_rainbow(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:
     sorted_cars = sorted(cars, key=lambda c: hex_para_hue(c.cor_hex))
     return _dispatch_fill(sorted_cars, shelves, wall)
@@ -44,8 +53,21 @@ def organize_favorites_first(cars: list[Car], shelves: list[ShelfConfig], wall: 
     return _dispatch_fill(favs + rest, shelves, wall)
 
 
-def total_slots(shelves: list[ShelfConfig]) -> int:
-    return sum(s.linhas * s.colunas for s in shelves)
+def total_slots(shelves: list[ShelfConfig], disabled: dict = None) -> int:
+    total = sum(s.linhas * s.colunas for s in shelves)
+    if not disabled:
+        return total
+    blocked = 0
+    for s in shelves:
+        d = disabled.get(s.id)
+        if not d:
+            continue
+        for row in range(s.linhas):
+            if row in d["rows"]:
+                blocked += s.colunas
+                continue
+            blocked += sum(1 for col in range(s.colunas) if (row, col) in d["cells"])
+    return total - blocked
 
 
 def _dispatch_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None) -> dict:

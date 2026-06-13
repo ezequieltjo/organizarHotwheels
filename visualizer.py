@@ -5,7 +5,8 @@ CELL_W = 22
 CELL_H = 9
 
 
-def _mark_disabled_for_shelf(disabled, shelf_id, fill_colors, texts, g_row_offset):
+def _mark_disabled_for_shelf(disabled, shelf_id, fill_colors, texts, g_row_offset,
+                            g_col_offset=0, shelf_cols=None):
     """Grey out blocked-empty cells. Cars (non-empty text) are NOT overridden."""
     if not disabled:
         return
@@ -14,19 +15,28 @@ def _mark_disabled_for_shelf(disabled, shelf_id, fill_colors, texts, g_row_offse
         return
     for r in d["rows"]:
         target_row = g_row_offset + r
-        if target_row >= len(fill_colors):
+        if target_row < 0 or target_row >= len(fill_colors):
             continue
-        for c in range(len(fill_colors[target_row])):
+        if shelf_cols is not None:
+            col_range = range(g_col_offset, g_col_offset + shelf_cols)
+        else:
+            col_range = range(len(fill_colors[target_row]))
+        for c in col_range:
+            if c < 0 or c >= len(fill_colors[target_row]):
+                continue
             if texts[target_row][c] == "":
                 fill_colors[target_row][c] = "#888888"
                 texts[target_row][c] = "✕"
     for (r, c) in d["cells"]:
         target_row = g_row_offset + r
-        if target_row >= len(fill_colors) or c >= len(fill_colors[target_row]):
+        target_col = g_col_offset + c
+        if target_row < 0 or target_row >= len(fill_colors):
             continue
-        if texts[target_row][c] == "":
-            fill_colors[target_row][c] = "#888888"
-            texts[target_row][c] = "✕"
+        if target_col < 0 or target_col >= len(fill_colors[target_row]):
+            continue
+        if texts[target_row][target_col] == "":
+            fill_colors[target_row][target_col] = "#888888"
+            texts[target_row][target_col] = "✕"
 
 
 def render_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConfig],
@@ -200,7 +210,8 @@ def _render_wall_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConf
             if not shelf:
                 continue
             _mark_disabled_for_shelf(disabled, shelf.id, grid_colors, grid_texts,
-                                     row_offsets[wall_row])
+                                     row_offsets[wall_row], col_offsets[wall_col],
+                                     shelf_cols=shelf.colunas)
 
     # Build figure
     fig = go.Figure(data=go.Heatmap(

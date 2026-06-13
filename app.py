@@ -6,8 +6,7 @@ from models import Car, ShelfConfig, ParedeConfig
 from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      insert_shelf, get_all_shelves, update_shelf, delete_shelf,
                      clear_positions, apply_positions, get_wall_config, save_wall_config,
-                     get_all_disabled_slots, get_disabled_slots, set_disabled_slot,
-                     clear_disabled_slots, replace_disabled_slots)
+                     get_all_disabled_slots, get_disabled_slots, replace_disabled_slots)
 from importer import import_file
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,

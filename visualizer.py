@@ -5,15 +5,40 @@ CELL_W = 22
 CELL_H = 9
 
 
+def _mark_disabled_for_shelf(disabled, shelf_id, fill_colors, texts, g_row_offset):
+    """Grey out blocked-empty cells. Cars (non-empty text) are NOT overridden."""
+    if not disabled:
+        return
+    d = disabled.get(shelf_id)
+    if not d:
+        return
+    for r in d["rows"]:
+        target_row = g_row_offset + r
+        if target_row >= len(fill_colors):
+            continue
+        for c in range(len(fill_colors[target_row])):
+            if texts[target_row][c] == "":
+                fill_colors[target_row][c] = "#888888"
+                texts[target_row][c] = "✕"
+    for (r, c) in d["cells"]:
+        target_row = g_row_offset + r
+        if target_row >= len(fill_colors) or c >= len(fill_colors[target_row]):
+            continue
+        if texts[target_row][c] == "":
+            fill_colors[target_row][c] = "#888888"
+            texts[target_row][c] = "✕"
+
+
 def render_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConfig],
-                wall: ParedeConfig = None) -> go.Figure:
+                wall: ParedeConfig = None, disabled: dict = None) -> go.Figure:
     """Render grid visual. assignment: {car_id: (shelf_id, row, col)}"""
     if wall and (wall.linhas > 1 or wall.colunas > 1):
-        return _render_wall_grid(assignment, cars, shelves, wall)
-    return _render_stacked_grid(assignment, cars, shelves)
+        return _render_wall_grid(assignment, cars, shelves, wall, disabled)
+    return _render_stacked_grid(assignment, cars, shelves, disabled)
 
 
-def _render_stacked_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConfig]) -> go.Figure:
+def _render_stacked_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConfig],
+                          disabled: dict = None) -> go.Figure:
     car_map = {c.id: c for c in cars}
     shelf_map = {s.id: s for s in shelves}
 
@@ -45,6 +70,12 @@ def _render_stacked_grid(assignment: dict, cars: list[Car], shelves: list[ShelfC
         texts[g_row][s_col] = _car_label(car)
         if car.favorito:
             border_colors[g_row][s_col] = "#FFD700"
+
+    # Mark blocked-empty cells grey
+    row_offset = 0
+    for shelf in shelves:
+        _mark_disabled_for_shelf(disabled, shelf.id, colors, texts, row_offset)
+        row_offset += shelf.linhas
 
     fig = go.Figure(data=go.Heatmap(
         z=[[0] * max_col for _ in range(total_rows)],
@@ -93,7 +124,7 @@ def _render_stacked_grid(assignment: dict, cars: list[Car], shelves: list[ShelfC
 
 
 def _render_wall_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConfig],
-                      wall: ParedeConfig) -> go.Figure:
+                      wall: ParedeConfig, disabled: dict = None) -> go.Figure:
     car_map = {c.id: c for c in cars}
     shelf_map = {s.id: s for s in shelves}
 
@@ -161,6 +192,15 @@ def _render_wall_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConf
         grid_texts[gr][gc] = _car_label(car)
         if car.favorito:
             grid_borders[gr][gc] = "#FFD700"
+
+    # Mark blocked-empty cells grey
+    for wall_row in range(wall.linhas):
+        for wall_col in range(wall.colunas):
+            shelf = wall_grid[wall_row][wall_col]
+            if not shelf:
+                continue
+            _mark_disabled_for_shelf(disabled, shelf.id, grid_colors, grid_texts,
+                                     row_offsets[wall_row])
 
     # Build figure
     fig = go.Figure(data=go.Heatmap(

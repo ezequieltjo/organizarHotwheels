@@ -530,15 +530,20 @@ st.html(f"""<script>
   var d=parent.document;
   var s=d.createElement('style');
   s.textContent=`
-    .car-action-col{{display:flex!important;justify-content:center!important;}}
-    .car-action-col button{{display:flex!important;justify-content:center!important;align-items:center!important;font-size:1.3rem!important;padding:0!important;width:38px!important;height:38px!important;min-width:38px!important;max-width:38px!important;border-radius:8px!important;margin:0 auto!important;line-height:1!important;}}
+    .car-actions-row{{display:flex!important;gap:6px!important;justify-content:center!important;align-items:center!important;}}
+    .car-actions-row > div{{flex:0 0 30px!important;width:30px!important;padding:0!important;margin:0!important;}}
+    .car-actions-row button{{display:flex!important;justify-content:center!important;align-items:center!important;font-size:1.1rem!important;padding:0!important;width:30px!important;height:30px!important;min-width:30px!important;max-width:30px!important;border-radius:6px!important;margin:0 auto!important;line-height:1!important;}}
   `;
   d.head.appendChild(s);
   function markButtons(){{
     d.querySelectorAll('button').forEach(function(b){{
       var t=b.textContent.trim();
       if((t==='⭐'||t==='📦'||t==='📭'||t==='✏️'||t==='🗑️')&&b.closest('[data-testid="stColumn"]')){{
-        b.closest('[data-testid="stColumn"]').classList.add('car-action-col');
+        var col=b.closest('[data-testid="stColumn"]');
+        var row=col.parentElement;
+        if(row&&row.getAttribute('data-testid')==='stHorizontalBlock'){{
+          row.classList.add('car-actions-row');
+        }}
       }}
     }});
   }}

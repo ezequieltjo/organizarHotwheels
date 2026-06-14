@@ -41,7 +41,20 @@
       "Bash(pip3 show *)",
       "Bash(C:/Users/Admin/AppData/Local/Programs/Python/Python311/python.exe *)",
       "Bash(git check-ignore *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(git *)",
+      "Read(//c/Users/Admin/.claude/plugins/**)",
+      "Read(//c/Users/Admin/.claude/plugins/marketplaces/**)",
+      "Read(//c/Users/Admin/.claude/**)",
+      "Bash(node \"C:/Users/Admin/AppData/Roaming/npm/node_modules/cavemem/dist/index.js\" mcp)",
+      "Bash(timeout 3 node \"C:/Users/Admin/AppData/Roaming/npm/node_modules/cavemem/dist/index.js\" mcp)",
+      "Bash(claude mcp *)",
+      "Bash(xargs grep -l \"caveman-shrink\\\\|mcp\")",
+      "Bash(timeout 30 npx -y caveman-shrink --help)",
+      "Bash(timeout 10 npx -y caveman-shrink)",
+      "Bash(timeout 30 npm view caveman-shrink)",
+      "Read(//c/Users/Admin/**)",
+      "Bash(python3 *)"
     ]
   }
 }

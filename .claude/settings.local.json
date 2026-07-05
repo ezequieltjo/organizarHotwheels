@@ -54,7 +54,24 @@
       "Bash(timeout 10 npx -y caveman-shrink)",
       "Bash(timeout 30 npm view caveman-shrink)",
       "Read(//c/Users/Admin/**)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(claude *)",
+      "Bash(npm view *)",
+      "Bash(winget list *)",
+      "Bash(winget upgrade *)",
+      "Bash(npm i *)",
+      "Bash(npm ls *)",
+      "Bash(npm outdated *)",
+      "Bash(mkdir -p C:/Users/Admin/.claude/skills/update-claude-environment/docs)",
+      "Bash(mkdir -p C:/Users/Admin/.claude/skills/update-claude-environment/tests)",
+      "Bash(npm list *)",
+      "Bash(where claude *)",
+      "Bash(npm --version)",
+      "Bash(npm config *)",
+      "Bash(npm show *)",
+      "Bash(echo \"---EXIT $?---\")",
+      "Skill(update-claude-environment)",
+      "Bash(npm install *)"
     ]
   }
 }

@@ -15,6 +15,7 @@ from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
 from visualizer import render_grid
 from color_utils import nome_para_hex
 from camera_component import render_color_picker
+from color_sliders import render_color_sliders
 import time
 import base64
 
@@ -50,13 +51,30 @@ def _img_b64(path):
     return base64.b64encode(data).decode()
 
 
-def _save_photo(photo_bytes, modelo):
-    """Save photo to disk, return path."""
+def _save_photo(photo_bytes: bytes, modelo: str, old_path: str | None = None) -> str:
+    """Save photo to disk, return path. Remove previous photo when replacing."""
     ts = int(time.time() * 1000)
     safe = "".join(c if c.isalnum() else "_" for c in modelo)[:30]
     path = str(PHOTOS_DIR / f"{safe}_{ts}.jpg")
     Path(path).write_bytes(photo_bytes)
+    _remove_photo(old_path)
     return path
+
+
+def _remove_photo(path: str | None) -> None:
+    """Delete previous photo file if it lives inside PHOTOS_DIR."""
+    if not path:
+        return
+    try:
+        resolved = Path(path).resolve()
+        inside = resolved.is_relative_to(PHOTOS_DIR.resolve())
+    except (OSError, ValueError):
+        return
+    if inside and resolved.is_file():
+        try:
+            resolved.unlink()
+        except OSError:
+            pass
 
 
 # --- Main tabs ---
@@ -159,7 +177,11 @@ with tab1:
                             cor = ""
                         foto_path = editing_car.foto_path
                         if st.session_state.get("_pending_photo"):
-                            foto_path = _save_photo(st.session_state._pending_photo, modelo.strip())
+                            foto_path = _save_photo(
+                                st.session_state._pending_photo,
+                                modelo.strip(),
+                                old_path=editing_car.foto_path,
+                            )
                         editing_car.modelo = modelo.strip()
                         editing_car.marca = marca
                         editing_car.fabricante = fabricante
@@ -182,6 +204,7 @@ with tab1:
                         st.session_state._car_toast_msg = "Carro editado com sucesso!"
                         st.session_state.car_toast = True
                         st.rerun()
+            render_color_sliders(_cor_key)
         else:
             st.subheader("Adicionar carro")
             existing_marcas = sorted(set(c.marca for c in st.session_state.cars if c.marca))
@@ -250,6 +273,7 @@ with tab1:
                         st.session_state._car_toast_msg = "Carro adicionado com sucesso!"
                         st.session_state.car_toast = True
                         st.rerun()
+            render_color_sliders("cor_picker_add")
 
     with c1:
         busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key="busca_cars")
@@ -425,7 +449,7 @@ with tab2:
                 assignment = {c.id: (c.expositor_id, c.posicao_linha, c.posicao_coluna)
                               for c in positioned}
                 fig = render_grid(assignment, cars, shelves, wall, st.session_state.disabled)
-                st.plotly_chart(fig, use_container_width=True, key="grid_expositores")
+                st.plotly_chart(fig, width="stretch", key="grid_expositores")
             else:
                 st.info("Nenhum carro posicionado ainda. Use a aba Organizar.")
 
@@ -460,7 +484,7 @@ with tab3:
         if "assignment" in st.session_state and st.session_state.assignment:
             assignment = st.session_state.assignment
             fig = render_grid(assignment, cars, shelves, wall, disabled)
-            st.plotly_chart(fig, use_container_width=True, key="grid_organizar")
+            st.plotly_chart(fig, width="stretch", key="grid_organizar")
 
             st.subheader("Posições")
             car_map = {c.id: c for c in cars}
@@ -476,7 +500,7 @@ with tab3:
                         "Linha": row + 1,
                         "Coluna": col + 1,
                     })
-            st.dataframe(pos_data, use_container_width=True, hide_index=True)
+            st.dataframe(pos_data, width="stretch", hide_index=True)
 
             c1, c2 = st.columns(2)
             if c1.button("Aplicar posições"):

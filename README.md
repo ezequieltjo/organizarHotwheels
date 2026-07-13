@@ -11,14 +11,53 @@ App para organizar coleção de miniaturas de carros em expositores.
 - Grid visual interativo com Plotly
 - Exportação de posições em CSV
 
-## Como usar
+## Pré-requisitos
 
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
+- **Python 3.10+** (testado com 3.13).
 
-Ou clique duas vezes em `rodar.bat`.
+## Como rodar localmente
+
+### Windows
+
+1. Instale o Python em <https://python.org> (marque **Add Python to PATH**).
+2. Abra o terminal na pasta do projeto.
+3. Instale as dependências:
+   ```cmd
+   pip install -r requirements.txt
+   ```
+4. Rode o app de um dos modos:
+   - Dê dois cliques em `rodar.bat`, **ou**
+   - No terminal:
+     ```cmd
+     streamlit run app.py
+     ```
+
+### Linux
+
+> Em distros como Arch/CachyOS o `pip` global é bloqueado (PEP 668).
+> Use um ambiente virtual — é o caminho recomendado e funciona em qualquer distro.
+
+1. Instale o Python pelo gerenciador de pacotes (Debian/Ubuntu: `sudo apt install python3 python3-venv`; Arch/CachyOS: já vem no sistema).
+2. Crie e ative um venv:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+3. Instale as dependências:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Rode o app de um dos modos:
+   - Pelo script (usa o `.venv` automaticamente se existir):
+     ```bash
+     ./rodar.sh
+     ```
+   - Ou direto no terminal (com o venv ativado):
+     ```bash
+     streamlit run app.py
+     ```
+
+O app abre em <http://localhost:8501> (ou porta indicada no terminal).
 
 ## Estrutura
 

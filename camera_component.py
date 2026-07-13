@@ -49,7 +49,7 @@ def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "
                 f'border-radius:6px;border:2px solid #666"></div>',
                 unsafe_allow_html=True,
             )
-            if st.button("Usar", key=f"_cpick_{key}_{i}", use_container_width=True):
+            if st.button("Usar", key=f"_cpick_{key}_{i}", width="stretch"):
                 st.session_state[state_key] = hex_c
                 if cor_key:
                     st.session_state[cor_key] = hex_c

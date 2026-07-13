@@ -57,3 +57,27 @@ def distancia_rgb(hex1: str, hex2: str) -> float:
 
 def cor_mais_proxima(hex_color: str) -> str:
     return min(NOMES_CORES, key=lambda n: distancia_rgb(hex_color, NOMES_CORES[n]))
+
+
+def rgb_to_hex(r: int, g: int, b: int) -> str:
+    """RGB (0-255) -> #RRGGBB, clampando valores fora do intervalo."""
+    r = max(0, min(255, int(r)))
+    g = max(0, min(255, int(g)))
+    b = max(0, min(255, int(b)))
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
+def hex_to_hsv_deg(hex_color: str) -> tuple[int, int, int]:
+    """Hex -> (hue 0-360, saturation 0-100, value 0-100)."""
+    r, g, b = (c / 255.0 for c in hex_para_rgb(hex_color))
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    return (round(h * 360), round(s * 100), round(v * 100))
+
+
+def hsv_deg_to_rgb(h_deg: int, s_pct: int, v_pct: int) -> tuple[int, int, int]:
+    """(hue 0-360, sat 0-100, val 0-100) -> RGB (0-255)."""
+    h = (h_deg % 360) / 360.0
+    s = max(0.0, min(1.0, s_pct / 100.0))
+    v = max(0.0, min(1.0, v_pct / 100.0))
+    r, g, b = colorsys.hsv_to_rgb(h, s, v)
+    return (round(r * 255), round(g * 255), round(b * 255))

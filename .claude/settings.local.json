@@ -71,7 +71,25 @@
       "Bash(npm show *)",
       "Bash(echo \"---EXIT $?---\")",
       "Skill(update-claude-environment)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(chmod +x /home/ezequiel/Documents/organizarHotwheels/rodar.sh)",
+      "Bash(pyenv versions *)",
+      "Bash(~/.pyenv/versions/3.13.13/bin/python -m venv .venv)",
+      "Bash(.venv/bin/python --version)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/streamlit --version)",
+      "Bash(.venv/bin/python -c \"import pandas, openpyxl, PIL, plotly, pytest; print\\('deps OK'\\)\")",
+      "Bash(.venv/bin/python -c \"import models, storage, importer, organizers, visualizer, color_utils, camera_component; print\\('modulos projeto OK'\\)\")",
+      "Bash(timeout 10 .venv/bin/streamlit run app.py --server.headless true --server.port 8765)",
+      "Bash(.venv/bin/pytest tests/test_organizers.py -q)",
+      "Bash(.venv/bin/pytest tests/test_organizers.py -q -k \"gray or gradient\" -v)",
+      "Bash(.venv/bin/pytest tests/test_organizers.py -q -k \"gray or gradient\")",
+      "Bash(.venv/bin/python *)",
+      "Bash(.venv/bin/pytest tests/test_organizers.py -q -k \"colored or pastel\")",
+      "Bash(.venv/bin/pytest tests/test_color_utils.py -q)",
+      "Bash(.venv/bin/pytest tests/test_color_utils.py tests/test_organizers.py -q)",
+      "Bash(timeout 12 .venv/bin/streamlit run app.py --server.headless true --server.port 8765)",
+      "Bash(.venv/bin/pip list *)"
     ]
   }
 }

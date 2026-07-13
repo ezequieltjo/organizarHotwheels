@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .env
 .venv/
+
+# Symlinked skill docs (point into .venv/, break on other machines)
+.agents/
+.claude/skills/

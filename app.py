@@ -45,36 +45,57 @@ def refresh():
 if "cars" not in st.session_state:
     refresh()
 
-def _img_b64(path):
-    """Read image file, return base64 string."""
-    data = Path(path).read_bytes()
-    return base64.b64encode(data).decode()
+def _resolve_photo(path: str) -> Path | None:
+    """Resolve a stored foto_path to an existing file Path.
+
+    Handles three stored forms: relative ('photos/x.jpg'), absolute
+    (legacy, e.g. 'D:\\Code\\...'), and bare filename. Returns None if no
+    matching file exists so the caller falls back to the color swatch.
+    """
+    if not path:
+        return None
+    p = Path(path)
+    if p.is_absolute():
+        candidates = [p, PHOTOS_DIR / p.name]
+    else:
+        candidates = [PHOTOS_DIR.parent / p, PHOTOS_DIR / p.name]
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def _img_b64(path) -> str:
+    """Read resolved image file, return base64 string."""
+    resolved = _resolve_photo(str(path))
+    if resolved is None:
+        raise FileNotFoundError(path)
+    return base64.b64encode(resolved.read_bytes()).decode()
 
 
 def _save_photo(photo_bytes: bytes, modelo: str, old_path: str | None = None) -> str:
-    """Save photo to disk, return path. Remove previous photo when replacing."""
+    """Save photo to disk, return relative path. Remove previous photo when replacing."""
     ts = int(time.time() * 1000)
     safe = "".join(c if c.isalnum() else "_" for c in modelo)[:30]
-    path = str(PHOTOS_DIR / f"{safe}_{ts}.jpg")
-    Path(path).write_bytes(photo_bytes)
+    filename = f"{safe}_{ts}.jpg"
+    (PHOTOS_DIR / filename).write_bytes(photo_bytes)
     _remove_photo(old_path)
-    return path
+    return f"photos/{filename}"
 
 
 def _remove_photo(path: str | None) -> None:
     """Delete previous photo file if it lives inside PHOTOS_DIR."""
-    if not path:
+    resolved = _resolve_photo(path or "")
+    if resolved is None:
         return
     try:
-        resolved = Path(path).resolve()
-        inside = resolved.is_relative_to(PHOTOS_DIR.resolve())
-    except (OSError, ValueError):
-        return
-    if inside and resolved.is_file():
-        try:
+        if resolved.is_relative_to(PHOTOS_DIR.resolve()) and resolved.is_file():
             resolved.unlink()
-        except OSError:
-            pass
+    except OSError:
+        pass
 
 
 # --- Main tabs ---
@@ -109,7 +130,7 @@ with tab1:
 
             # --- Photo capture (outside form) ---
             st.markdown("**Foto do carro**")
-            if editing_car.foto_path and Path(editing_car.foto_path).exists():
+            if _resolve_photo(editing_car.foto_path) is not None:
                 st.markdown(
                     f"<div style='border:4px solid {live_color};border-radius:8px;overflow:hidden;display:inline-block'>"
                     f"<img src='data:image/jpeg;base64,{_img_b64(editing_car.foto_path)}' style='width:200px;height:auto;display:block'></div>",
@@ -123,8 +144,8 @@ with tab1:
             source = camera_photo or file_photo
             if source:
                 st.session_state._pending_photo = source.getvalue()
-            elif editing_car.foto_path and Path(editing_car.foto_path).exists():
-                st.session_state.setdefault("_pending_photo", Path(editing_car.foto_path).read_bytes())
+            elif (_existing := _resolve_photo(editing_car.foto_path)) is not None:
+                st.session_state.setdefault("_pending_photo", _existing.read_bytes())
 
             # --- Color picker ---
             if st.session_state.get("_pending_photo"):
@@ -315,7 +336,7 @@ with tab1:
             with st.container():
                 col1, col2, col3 = st.columns([1, 6, 2])
                 with col1:
-                    if car.foto_path and Path(car.foto_path).exists():
+                    if _resolve_photo(car.foto_path) is not None:
                         st.markdown(
                             f"<div style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:60px;height:45px'>"
                             f"<img src='data:image/jpeg;base64,{_img_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",

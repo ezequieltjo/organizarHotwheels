@@ -2,6 +2,10 @@
 
 App para organizar coleção de miniaturas de carros em expositores.
 
+## Acesso online
+
+O app está disponível em <https://organizarhotwheels.streamlit.app/> — o Streamlit Community Cloud executa o projeto automaticamente quando o repositório é público. Sem instalação necessária.
+
 ## Funcionalidades
 
 - Cadastro de carros (modelo, marca do carro, fabricante da miniatura, cor, série, foto)

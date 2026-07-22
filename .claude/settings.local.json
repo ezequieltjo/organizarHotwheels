@@ -89,7 +89,10 @@
       "Bash(.venv/bin/pytest tests/test_color_utils.py -q)",
       "Bash(.venv/bin/pytest tests/test_color_utils.py tests/test_organizers.py -q)",
       "Bash(timeout 12 .venv/bin/streamlit run app.py --server.headless true --server.port 8765)",
-      "Bash(.venv/bin/pip list *)"
+      "Bash(.venv/bin/pip list *)",
+      "Bash(.venv/bin/pip freeze *)",
+      "Bash(streamlit --version)",
+      "Bash(dpkg -l python3-venv)"
     ]
   }
 }

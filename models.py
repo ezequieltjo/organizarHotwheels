@@ -37,3 +37,11 @@ class ParedeConfig:
     id: int = 1
     linhas: int = 1
     colunas: int = 1
+
+
+@dataclass(frozen=True)
+class GradientConfig:
+    """Parâmetros do modo Degradê (moldura de cinza)."""
+    sat_threshold_pct: float = 12.0       # 0-50
+    partial_strategy: str = "colorido"    # colorido | vazio | estica
+    interior_strategy: str = "hue_value"  # hue_value | similaridade

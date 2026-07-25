@@ -27,3 +27,23 @@ def test_shelf_config_capacity():
     shelf = ShelfConfig(id=1, nome="Prateleira A", linhas=4, colunas=10)
     assert shelf.nome == "Prateleira A"
     assert shelf.linhas * shelf.colunas == 40
+
+
+from models import GradientConfig
+
+
+def test_gradient_config_defaults():
+    cfg = GradientConfig()
+    assert cfg.sat_threshold_pct == 12.0
+    assert cfg.partial_strategy == "colorido"
+    assert cfg.interior_strategy == "hue_value"
+
+
+def test_gradient_config_is_frozen():
+    import dataclasses
+    cfg = GradientConfig()
+    try:
+        cfg.sat_threshold_pct = 50.0  # type: ignore[misc]
+    except dataclasses.FrozenInstanceError:
+        return
+    raise AssertionError("GradientConfig deve ser imutável (frozen)")

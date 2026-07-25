@@ -1,8 +1,9 @@
-from models import Car, ShelfConfig, ParedeConfig
+from models import Car, ShelfConfig, ParedeConfig, GradientConfig
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
                         organize_favorites_first, total_slots, _fill_grid, _fill_wall_grid,
-                        _is_gray, _ring_cells, _ordered_cells)
+                        _is_gray, _ring_cells, _ordered_cells,
+                        _place_grays, _place_chroma, _grid_to_assignment)
 
 
 def make_cars():
@@ -345,3 +346,59 @@ def test_organize_without_wall_falls_back():
     assert len(result) == 3
     # Same as _fill_grid sequential
     assert result[1] == (1, 0, 0)
+
+
+# --- ring placement helpers (Task 5) ---
+
+def _make_grid(rows, cols):
+    return [[None] * cols for _ in range(rows)]
+
+
+def _gray_car(cid, value01):
+    v = int(value01 * 255)
+    return Car(id=cid, modelo=f"g{cid}", cor_hex=f"#{v:02X}{v:02X}{v:02X}")
+
+
+def test_place_grays_fill_outer_then_inner():
+    grid = _make_grid(3, 6)
+    all_cells = _ordered_cells(3, 6)
+    outer = _ring_cells(3, 6, 0)
+    grays = [(_gray_car(10, 0.0), 0, 0, 0.0), (_gray_car(11, 1.0), 0, 0, 1.0)]
+    _place_grays(grid, grays, all_cells, outer, "colorido")
+    assert grid[0][3].id == 10  # preto no seam_right (cols//2 = 3)
+    assert grid[0][4].id == 11  # branco na próxima posição do anel
+
+
+def test_place_grays_estica_spreads():
+    grid = _make_grid(3, 6)
+    all_cells = _ordered_cells(3, 6)
+    outer = _ring_cells(3, 6, 0)
+    grays = [(_gray_car(10, 0.0), 0, 0, 0.0), (_gray_car(11, 1.0), 0, 0, 1.0)]
+    _place_grays(grid, grays, all_cells, outer, "estica")
+    assert grid[0][3].id == 10
+    white_cells = [(r, c) for r in range(3) for c in range(6)
+                   if grid[r][c] and grid[r][c].id == 11]
+    br, bc = white_cells[0]
+    assert abs(br - 0) + abs(bc - 3) > 1  # não adjacente (espaçado)
+
+
+def test_place_chroma_vazio_stays_off_perimeter():
+    grid = _make_grid(3, 6)
+    outer_set = set(_ring_cells(3, 6, 0))
+    chroma = [(Car(id=1, cor_hex="#FF0000"), 0.0, 1.0, 1.0),
+              (Car(id=2, cor_hex="#00FF00"), 0.33, 1.0, 1.0),
+              (Car(id=3, cor_hex="#0000FF"), 0.66, 1.0, 1.0)]
+    cfg = GradientConfig(sat_threshold_pct=0.0, partial_strategy="vazio",
+                         interior_strategy="hue_value")
+    _place_chroma(grid, chroma, 3, 6, outer_set, cfg)
+    placed = [(r, c) for r in range(3) for c in range(6) if grid[r][c]]
+    assert all(cell not in outer_set for cell in placed)
+
+
+def test_grid_to_assignment_maps_to_real_slots():
+    grid = _make_grid(1, 2)
+    grid[0][0] = Car(id=1, cor_hex="#FF0000")
+    grid[0][1] = Car(id=2, cor_hex="#00FF00")
+    slot_map = {(0, 0): (1, 0, 0), (0, 1): (1, 0, 1)}
+    res = _grid_to_assignment(grid, [grid[0][0], grid[0][1]], slot_map, 1, 2)
+    assert res == {1: (1, 0, 0), 2: (1, 0, 1)}

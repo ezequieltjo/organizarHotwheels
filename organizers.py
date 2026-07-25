@@ -1,7 +1,7 @@
 import math
 import random
 import colorsys
-from models import Car, ShelfConfig, ParedeConfig
+from models import Car, ShelfConfig, ParedeConfig, GradientConfig
 from color_utils import hex_para_hue, hex_para_rgb, distancia_rgb
 
 # assignment = {car_id: (shelf_id, row, col)}
@@ -218,6 +218,107 @@ def _ordered_cells(rows: int, cols: int) -> list[tuple[int, int]]:
         cells.extend(_ring_cells(h, w, offset))
         offset += 1
     return list(dict.fromkeys(cells))
+
+
+def _find_nearest_allowed(grid, row, col, allowed, total_rows, total_cols):
+    """Célula vazia mais próxima de (row, col) dentro do conjunto permitido."""
+    if (row, col) in allowed:
+        return (row, col)
+    for dist in range(1, max(total_rows, total_cols)):
+        for dr in range(-dist, dist + 1):
+            for dc in range(-dist, dist + 1):
+                if abs(dr) + abs(dc) != dist:
+                    continue
+                cell = (row + dr, col + dc)
+                if cell in allowed:
+                    return cell
+    return None
+
+
+def _place_grays(grid, grays, all_cells, outer_ring, strategy):
+    """Posiciona cinzas (já ordenados preto->branco) no anel.
+
+    estica (e poucos cinzas): distribui uniformemente pelo anel externo.
+    caso geral: preenche anel externo e depois anéis internos (concêntrico).
+    """
+    if not grays:
+        return
+    rows, cols = len(grid), len(grid[0])
+    n = len(grays)
+    if strategy == "estica" and n < len(outer_ring):
+        step = max(1, len(outer_ring) // n)
+        for i, (car, _h, _s, _v) in enumerate(grays):
+            idx = min(i * step, len(outer_ring) - 1)
+            r, c = outer_ring[idx]
+            if grid[r][c] is None:
+                grid[r][c] = car
+            else:
+                er, ec = _find_nearest_empty(grid, r, c, rows, cols)
+                if er is not None:
+                    grid[er][ec] = car
+        return
+    for (car, _h, _s, _v), (r, c) in zip(grays, all_cells):
+        if grid[r][c] is None:
+            grid[r][c] = car
+        else:
+            er, ec = _find_nearest_empty(grid, r, c, rows, cols)
+            if er is not None:
+                grid[er][ec] = car
+
+
+def _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg):
+    """Posiciona coloridos no miolo (e perímetro, conforme estratégia)."""
+    if not chroma:
+        return
+    allowed = {(r, c) for r in range(total_rows) for c in range(total_cols)
+               if grid[r][c] is None}
+    if cfg.partial_strategy == "vazio":
+        allowed = {cell for cell in allowed if cell not in outer_set}
+
+    if cfg.interior_strategy == "similaridade":
+        ordered = _nearest_neighbor_sort([c[0] for c in chroma])
+        interior = sorted(cell for cell in allowed if cell not in outer_set)
+        perimeter = sorted(cell for cell in allowed if cell in outer_set)
+        seq = interior + perimeter
+        for car, cell in zip(ordered, seq):
+            grid[cell[0]][cell[1]] = car
+            allowed.discard(cell)
+        return
+
+    for car, h, _s, v in chroma:
+        target_col = int(h * total_cols) % total_cols
+        target_row = int((1.0 - v) * total_rows) if total_rows > 1 else 0
+        target_row = min(max(target_row, 0), total_rows - 1)
+        cell = _find_nearest_allowed(grid, target_row, target_col, allowed,
+                                     total_rows, total_cols)
+        if cell is not None:
+            grid[cell[0]][cell[1]] = car
+            allowed.discard(cell)
+
+
+def _grid_to_assignment(grid, cars, slot_map, total_rows, total_cols):
+    """Converte a grade virtual em assignment {car_id: (shelf_id, row, col)}."""
+    assignment = {}
+    used = set()
+    for r in range(total_rows):
+        for c in range(total_cols):
+            car = grid[r][c]
+            if car is None or car.id in assignment:
+                continue
+            if (r, c) in slot_map and (r, c) not in used:
+                assignment[car.id] = slot_map[(r, c)]
+                used.add((r, c))
+            else:
+                found = _find_nearest_real_slot(slot_map, used, r, c, total_rows, total_cols)
+                if found:
+                    assignment[car.id] = slot_map[found]
+                    used.add(found)
+    remaining_cars = [c for c in cars if c.id not in assignment]
+    remaining_slots = [pos for pos in slot_map if pos not in used]
+    for car, pos in zip(remaining_cars, remaining_slots):
+        assignment[car.id] = slot_map[pos]
+        used.add(pos)
+    return assignment
 
 
 def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,

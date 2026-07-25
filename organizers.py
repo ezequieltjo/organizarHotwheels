@@ -4,14 +4,6 @@ import colorsys
 from models import Car, ShelfConfig, ParedeConfig
 from color_utils import hex_para_hue, hex_para_rgb, distancia_rgb
 
-# Limiares HSV para classificar cores da escala de cinza
-GRAY_SAT_THRESHOLD = 0.12   # saturação baixa = cinza neutro
-NEAR_BLACK_VALUE = 0.12     # value muito baixo = quase-preto (cinza escuro)
-NEAR_WHITE_VALUE = 0.92     # value muito alto = quase-branco
-NEAR_WHITE_SAT = 0.30       # saturação máx para quase-branco contar como cinza claro
-COLORED_GRAY_MAX_VALUE = 0.70  # value máx para cinza colorido (escuro/médio)
-COLORED_GRAY_MAX_SAT = 0.30    # saturação máx para cinza colorido
-
 # assignment = {car_id: (shelf_id, row, col)}
 
 
@@ -172,18 +164,13 @@ def _hex_to_hsv(hex_color: str) -> tuple[float, float, float]:
     return colorsys.rgb_to_hsv(r, g, b)
 
 
-def _is_gray(hex_color: str) -> bool:
-    """True se a cor pertence à escala de cinza: neutro, quase-preto, quase-branco ou cinza colorido."""
-    _, s, v = _hex_to_hsv(hex_color)
-    if s < GRAY_SAT_THRESHOLD:
-        return True
-    if v < NEAR_BLACK_VALUE:
-        return True
-    if v > NEAR_WHITE_VALUE and s < NEAR_WHITE_SAT:
-        return True
-    if v < COLORED_GRAY_MAX_VALUE and s < COLORED_GRAY_MAX_SAT:
-        return True
-    return False
+def _is_gray(hex_color: str, sat_threshold: float) -> bool:
+    """True se saturação HSV <= sat_threshold (escala 0-1).
+
+    Preto, branco e cinzas neutros (sat ~ 0) sempre contam como cinza.
+    """
+    _, s, _ = _hex_to_hsv(hex_color)
+    return s <= sat_threshold
 
 
 def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,
@@ -201,7 +188,7 @@ def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeC
     chroma_cars = []
     for car in cars:
         h, s, v = _hex_to_hsv(car.cor_hex)
-        if _is_gray(car.cor_hex):
+        if _is_gray(car.cor_hex, 0.12):
             gray_cars.append((car, h, s, v))
         else:
             chroma_cars.append((car, h, s, v))

@@ -109,61 +109,34 @@ def test_organize_gradient():
     assert set(result.keys()) == {1, 2, 3}
 
 
-# --- gray classification (critério composto: s + value) ---
+# --- gray classification (critério: saturação HSV <= limiar) ---
 
-def test_is_gray_neutral_pure_gray():
-    assert _is_gray("#808080")  # cinza puro, s=0
-
-
-def test_is_gray_dirty_gray_low_saturation():
-    assert _is_gray("#8A8A8A")  # cinza sujo, saturação baixa
+def test_is_gray_neutral():
+    assert _is_gray("#808080", 0.12)   # cinza puro, s=0
+    assert _is_gray("#8A8A8A", 0.12)   # cinza sujo, saturação baixa
 
 
-def test_is_gray_near_black():
-    # vermelho quase preto: s alto mas v < 0.12 -> tratado como cinza escuro
-    assert _is_gray("#0A0000")
+def test_is_gray_pure_black_white():
+    assert _is_gray("#000000", 0.12)
+    assert _is_gray("#FFFFFF", 0.12)
 
 
-def test_is_gray_near_white():
-    # branco sujo: v > 0.92 e s < 0.30 -> cinza claro
-    assert _is_gray("#F5F5F0")
+def test_is_gray_saturated_is_chromatic():
+    assert not _is_gray("#FF0000", 0.12)  # vermelho puro
+    assert not _is_gray("#00FF00", 0.12)  # verde puro
+    assert not _is_gray("#0000FF", 0.12)  # azul puro
 
 
-def test_is_gray_pure_black_and_white():
-    assert _is_gray("#000000")
-    assert _is_gray("#FFFFFF")
+def test_is_gray_dark_saturated_stays_chromatic():
+    # vermelho quase-preto e navy: sat alta -> colorido (diferença vs regra antiga)
+    assert not _is_gray("#0A0000", 0.12)
+    assert not _is_gray("#000080", 0.12)
 
 
-def test_is_gray_chromatic_saturated_colors():
-    assert not _is_gray("#FF0000")  # vermelho puro
-    assert not _is_gray("#00FF00")  # verde puro
-    assert not _is_gray("#FF8C00")  # laranja
-
-
-def test_is_gray_navy_stays_chromatic():
-    # azul marinho: v=0.5 (não é quase-preto), s alto -> cromático
-    assert not _is_gray("#000080")
-
-
-def test_is_gray_colored_dark_gray_blue():
-    # cinza-azulado bem escuro (Batmóvel/GTR/Ice): dessaturado + escuro
-    assert _is_gray("#262B33")
-
-
-def test_is_gray_colored_olive_dark():
-    # cinza-oliva escuro (Gemera)
-    assert _is_gray("#5A5847")
-
-
-def test_is_gray_colored_medium_light():
-    # cinza colorido médio-claro (Speedtail, One-77): s baixo + v<0.70
-    assert _is_gray("#9090B0")
-    assert _is_gray("#90B090")
-
-
-def test_is_gray_not_light_pastel():
-    # pastel CLARO (lavanda/bege, v alto) continua cromático
-    assert not _is_gray("#B0B0D0")
+def test_is_gray_threshold_sensitivity():
+    # #9090B0 sat ~0.18: abaixo do limiar=colorido, acima=cinza
+    assert not _is_gray("#9090B0", 0.12)
+    assert _is_gray("#9090B0", 0.25)
 
 
 # --- gradient layout: cinzas nas bordas laterais, cromático no miolo ---

@@ -2,7 +2,7 @@ from models import Car, ShelfConfig, ParedeConfig
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
                         organize_favorites_first, total_slots, _fill_grid, _fill_wall_grid,
-                        _is_gray)
+                        _is_gray, _ring_cells)
 
 
 def make_cars():
@@ -137,6 +137,30 @@ def test_is_gray_threshold_sensitivity():
     # #9090B0 sat ~0.18: abaixo do limiar=colorido, acima=cinza
     assert not _is_gray("#9090B0", 0.12)
     assert _is_gray("#9090B0", 0.25)
+
+
+# --- ring perimeter order ---
+
+def test_ring_cells_clockwise_from_seam():
+    cells = _ring_cells(3, 3, 0)
+    assert cells[0] == (0, 1)    # preto: centro-direita do topo (cols//2 = 1)
+    assert cells[-1] == (0, 0)   # branco: centro-esquerda do topo (adjacente)
+    assert cells[1] == (0, 2)    # topo direita
+    assert cells[2] == (1, 2)    # borda direita descendo
+    assert (1, 1) not in cells   # centro é miolo, não perímetro
+
+
+def test_ring_cells_no_duplicates_and_full_perimeter():
+    cells = _ring_cells(4, 5, 0)
+    assert len(cells) == len(set(cells))           # sem duplicatas
+    assert len(cells) == 2 * (4 + 5) - 4           # perímetro = 14
+
+
+def test_ring_cells_offset_for_inner_ring():
+    outer = _ring_cells(5, 5, 0)
+    inner = _ring_cells(3, 3, 1)   # anel interno 3x3 com offset 1
+    assert (1, 1) in inner
+    assert set(outer).isdisjoint(set(inner))
 
 
 # --- gradient layout: cinzas nas bordas laterais, cromático no miolo ---

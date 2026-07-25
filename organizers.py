@@ -173,6 +173,30 @@ def _is_gray(hex_color: str, sat_threshold: float) -> bool:
     return s <= sat_threshold
 
 
+def _ring_cells(rows: int, cols: int, offset: int = 0) -> list[tuple[int, int]]:
+    """Células do perímetro da sub-grade com offset, em sentido horário.
+
+    Começa em (offset, offset + cols//2) [preto] e termina em
+    (offset, offset + cols//2 - 1) [branco]. Requer rows >= 2 e cols >= 2.
+    """
+    r0, c0 = offset, offset
+    r1, c1 = offset + rows - 1, offset + cols - 1
+    seam_right = offset + cols // 2      # preto
+    seam_left = offset + cols // 2 - 1   # branco (adjacente ao preto)
+    cells: list[tuple[int, int]] = []
+    for c in range(seam_right, c1 + 1):          # topo direita -> canto sup-direito
+        cells.append((r0, c))
+    for r in range(r0 + 1, r1 + 1):              # borda direita (descendo)
+        cells.append((r, c1))
+    for c in range(c1 - 1, c0 - 1, -1):          # fundo (direita -> esquerda)
+        cells.append((r1, c))
+    for r in range(r1 - 1, r0, -1):              # borda esquerda (subindo)
+        cells.append((r, c0))
+    for c in range(c0, seam_left + 1):           # topo esquerda -> branco
+        cells.append((r0, c))
+    return cells
+
+
 def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,
                       disabled: dict | None = None) -> dict:
     # Build slot list: (shelf_id, shelf_row, shelf_col, global_row, global_col)

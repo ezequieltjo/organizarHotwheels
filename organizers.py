@@ -220,7 +220,7 @@ def _ordered_cells(rows: int, cols: int) -> list[tuple[int, int]]:
     return list(dict.fromkeys(cells))
 
 
-def _find_nearest_allowed(grid, row, col, allowed, total_rows, total_cols):
+def _find_nearest_allowed(grid, row: int, col: int, allowed: set[tuple[int, int]], total_rows: int, total_cols: int) -> tuple[int, int] | None:
     """Célula vazia mais próxima de (row, col) dentro do conjunto permitido."""
     if (row, col) in allowed:
         return (row, col)
@@ -235,7 +235,7 @@ def _find_nearest_allowed(grid, row, col, allowed, total_rows, total_cols):
     return None
 
 
-def _place_grays(grid, grays, all_cells, outer_ring, strategy):
+def _place_grays(grid: list, grays: list, all_cells: list[tuple[int, int]], outer_ring: list[tuple[int, int]], strategy: str) -> None:
     """Posiciona cinzas (já ordenados preto->branco) no anel.
 
     estica (e poucos cinzas): distribui uniformemente pelo anel externo.
@@ -266,7 +266,7 @@ def _place_grays(grid, grays, all_cells, outer_ring, strategy):
                 grid[er][ec] = car
 
 
-def _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg):
+def _place_chroma(grid: list, chroma: list, total_rows: int, total_cols: int, outer_set: set[tuple[int, int]], cfg: GradientConfig) -> None:
     """Posiciona coloridos no miolo (e perímetro, conforme estratégia)."""
     if not chroma:
         return
@@ -282,7 +282,6 @@ def _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg):
         seq = interior + perimeter
         for car, cell in zip(ordered, seq):
             grid[cell[0]][cell[1]] = car
-            allowed.discard(cell)
         return
 
     for car, h, _s, v in chroma:
@@ -296,7 +295,7 @@ def _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg):
             allowed.discard(cell)
 
 
-def _grid_to_assignment(grid, cars, slot_map, total_rows, total_cols):
+def _grid_to_assignment(grid: list, cars: list, slot_map: dict, total_rows: int, total_cols: int) -> dict:
     """Converte a grade virtual em assignment {car_id: (shelf_id, row, col)}."""
     assignment = {}
     used = set()
@@ -313,7 +312,7 @@ def _grid_to_assignment(grid, cars, slot_map, total_rows, total_cols):
                 if found:
                     assignment[car.id] = slot_map[found]
                     used.add(found)
-    remaining_cars = [c for c in cars if c.id not in assignment]
+    remaining_cars = [car for car in cars if car.id not in assignment]
     remaining_slots = [pos for pos in slot_map if pos not in used]
     for car, pos in zip(remaining_cars, remaining_slots):
         assignment[car.id] = slot_map[pos]

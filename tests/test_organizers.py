@@ -2,7 +2,7 @@ from models import Car, ShelfConfig, ParedeConfig
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
                         organize_favorites_first, total_slots, _fill_grid, _fill_wall_grid,
-                        _is_gray, _ring_cells)
+                        _is_gray, _ring_cells, _ordered_cells)
 
 
 def make_cars():
@@ -161,6 +161,25 @@ def test_ring_cells_offset_for_inner_ring():
     inner = _ring_cells(3, 3, 1)   # anel interno 3x3 com offset 1
     assert (1, 1) in inner
     assert set(outer).isdisjoint(set(inner))
+
+
+# --- concentric ordered cells (outer ring -> inner rings -> center) ---
+
+def test_ordered_cells_covers_all():
+    cells = _ordered_cells(3, 6)
+    assert len(cells) == len(set(cells)) == 3 * 6
+
+
+def test_ordered_cells_outer_ring_first():
+    cells = _ordered_cells(5, 5)
+    outer = _ring_cells(5, 5, 0)
+    assert cells[: len(outer)] == outer
+
+
+def test_ordered_cells_single_row_safe():
+    # degradado: 1 linha -> row-major, não quebra
+    cells = _ordered_cells(1, 4)
+    assert cells == [(0, 0), (0, 1), (0, 2), (0, 3)]
 
 
 # --- gradient layout: cinzas nas bordas laterais, cromático no miolo ---

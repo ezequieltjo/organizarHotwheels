@@ -197,6 +197,29 @@ def _ring_cells(rows: int, cols: int, offset: int = 0) -> list[tuple[int, int]]:
     return cells
 
 
+def _ordered_cells(rows: int, cols: int) -> list[tuple[int, int]]:
+    """Todas as células: anel externo -> internos -> miolo, em ordem.
+
+    Cada anel é percorrido em sentido horário. O miolo final degenerado
+    (1 linha/coluna) é preenchido em row-major. Segura para rows, cols >= 1.
+    """
+    cells: list[tuple[int, int]] = []
+    offset = 0
+    while True:
+        h = rows - 2 * offset
+        w = cols - 2 * offset
+        if h <= 0 or w <= 0:
+            break
+        if h < 2 or w < 2:
+            for r in range(offset, offset + h):
+                for c in range(offset, offset + w):
+                    cells.append((r, c))
+            break
+        cells.extend(_ring_cells(h, w, offset))
+        offset += 1
+    return list(dict.fromkeys(cells))
+
+
 def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,
                       disabled: dict | None = None) -> dict:
     # Build slot list: (shelf_id, shelf_row, shelf_col, global_row, global_col)

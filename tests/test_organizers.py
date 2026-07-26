@@ -183,64 +183,6 @@ def test_ordered_cells_single_row_safe():
     assert cells == [(0, 0), (0, 1), (0, 2), (0, 3)]
 
 
-# --- gradient layout: cinzas nas bordas laterais, cromático no miolo ---
-
-def _gray_cars():
-    return [
-        Car(id=10, modelo="g_claro", cor_hex="#FFFFFF", cor="", marca="",
-            fabricante="", ano=2020, favorito=False),
-        Car(id=11, modelo="g_medio", cor_hex="#808080", cor="", marca="",
-            fabricante="", ano=2020, favorito=False),
-        Car(id=12, modelo="g_escuro", cor_hex="#000000", cor="", marca="",
-            fabricante="", ano=2020, favorito=False),
-    ]
-
-
-def test_gradient_gray_on_lateral_columns():
-    cars = _gray_cars() + make_cars()  # 3 cinzas + 3 cromáticos
-    shelves = [ShelfConfig(id=1, nome="P1", linhas=1, colunas=6)]
-    result = organize_gradient(cars, shelves)
-    gray_cols = {result[i][2] for i in (10, 11, 12)}
-    chroma_cols = {result[i][2] for i in (1, 2, 3)}
-    # cinzas nas bordas laterais, cromáticos no miolo (conjuntos disjuntos)
-    assert gray_cols & chroma_cols == set()
-    assert all(c in {0, 4, 5} for c in gray_cols)
-    assert all(c in {1, 2, 3} for c in chroma_cols)
-
-
-def test_gradient_gray_light_left_dark_right():
-    """Metade clara dos cinzas à esquerda, metade escura à direita."""
-    cars = [
-        Car(id=20, modelo="branco", cor_hex="#FFFFFF", cor="", marca="",
-            fabricante="", ano=2020, favorito=False),
-        Car(id=21, modelo="prata", cor_hex="#C0C0C0", cor="", marca="",
-            fabricante="", ano=2020, favorito=False),
-        Car(id=22, modelo="grafite", cor_hex="#404040", cor="", marca="",
-            fabricante="", ano=2020, favorito=False),
-        Car(id=23, modelo="preto", cor_hex="#000000", cor="", marca="",
-            fabricante="", ano=2020, favorito=False),
-    ]
-    shelves = [ShelfConfig(id=1, nome="P1", linhas=1, colunas=6)]
-    result = organize_gradient(cars, shelves)
-    light_cols = {result[20][2], result[21][2]}  # branco + prata
-    dark_cols = {result[22][2], result[23][2]}   # grafite + preto
-    mid = 3  # coluna central do expositor de 6 colunas
-    # claros à esquerda do meio, escuros à direita, lados disjuntos
-    assert all(c < mid for c in light_cols)
-    assert all(c >= mid for c in dark_cols)
-    assert light_cols & dark_cols == set()
-
-
-def test_gradient_gray_vertical_light_to_dark():
-    cars = _gray_cars()
-    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=1)]
-    result = organize_gradient(cars, shelves)
-    # claro no topo (row 0), escuro embaixo (row 2)
-    assert result[10][1] == 0  # branco
-    assert result[11][1] == 1  # cinza médio
-    assert result[12][1] == 2  # preto
-
-
 def test_gradient_no_gray_all_chromatic():
     # sem cinzas: não quebra, todos no miolo
     cars = make_cars()
@@ -248,6 +190,25 @@ def test_gradient_no_gray_all_chromatic():
     result = organize_gradient(cars, shelves)
     assert len(result) == 3
     assert set(result.keys()) == {1, 2, 3}
+
+
+def test_organize_gradient_with_config_smoke():
+    cars = _neutrals(4) + [Car(id=1, cor_hex="#FF0000"), Car(id=2, cor_hex="#0000FF")]
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    cfg = GradientConfig(sat_threshold_pct=10.0, partial_strategy="colorido",
+                         interior_strategy="hue_value")
+    res = organize_gradient(cars, shelves, config=cfg)
+    assert len(res) == 6
+    gray_cells = {res[c.id][1:] for c in _neutrals(4)}
+    chroma_cells = {res[1][1:], res[2][1:]}
+    assert gray_cells.isdisjoint(chroma_cells)
+
+
+def test_organize_gradient_default_config():
+    cars = [Car(id=1, cor_hex="#FF0000"), Car(id=2, cor_hex="#FFFFFF")]
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=2, colunas=4)]
+    res = organize_gradient(cars, shelves)
+    assert len(res) == 2
 
 
 def test_organize_empty():

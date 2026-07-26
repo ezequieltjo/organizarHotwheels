@@ -1,4 +1,3 @@
-import math
 import random
 import colorsys
 from models import Car, ShelfConfig, ParedeConfig, GradientConfig
@@ -29,11 +28,13 @@ def organize_rainbow(cars: list[Car], shelves: list[ShelfConfig],
 
 
 def organize_gradient(cars: list[Car], shelves: list[ShelfConfig],
-                      wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+                      wall: ParedeConfig = None, disabled: dict | None = None,
+                      config: GradientConfig | None = None) -> dict:
     cars = _filter_reserva(cars)
     if not cars:
         return {}
-    return _gradient_2d_fill(cars, shelves, wall, disabled)
+    cfg = config or GradientConfig()
+    return _ring_fill(cars, shelves, wall, disabled, cfg)
 
 
 def organize_by_brand(cars: list[Car], shelves: list[ShelfConfig],
@@ -350,100 +351,6 @@ def _ring_fill(cars: list[Car], shelves: list[ShelfConfig],
     _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg)
 
     return _grid_to_assignment(grid, cars, slot_map, total_rows, total_cols)
-
-
-def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,
-                      disabled: dict | None = None) -> dict:
-    # Build slot list: (shelf_id, shelf_row, shelf_col, global_row, global_col)
-    slots = _build_slot_list(shelves, wall, disabled)
-    if not slots:
-        return {}
-
-    total_rows = max(s[3] for s in slots) + 1
-    total_cols = max(s[4] for s in slots) + 1
-
-    # Classify colors: cinza (neutro/quase-preto/quase-branco) vs cromático
-    gray_cars = []
-    chroma_cars = []
-    for car in cars:
-        h, s, v = _hex_to_hsv(car.cor_hex)
-        if _is_gray(car.cor_hex, 0.12):
-            gray_cars.append((car, h, s, v))
-        else:
-            chroma_cars.append((car, h, s, v))
-
-    # Cromático por hue; cinza por value (claro -> escuro)
-    chroma_cars.sort(key=lambda x: x[1])
-    gray_cars.sort(key=lambda x: x[3], reverse=True)
-
-    # Build target grid indexed by (global_row, global_col) -> car or None
-    grid = [[None] * total_cols for _ in range(total_rows)]
-    # Map (global_row, global_col) -> real slot (shelf_id, shelf_row, shelf_col)
-    slot_map = {}
-    for shelf_id, sr, sc, gr, gc in slots:
-        slot_map[(gr, gc)] = (shelf_id, sr, sc)
-
-    # Cinzas divididos: metade clara à esquerda, metade escura à direita.
-    # Cromático no miolo. Dentro de cada lado, gradiente vertical claro(top) -> escuro(bottom).
-    n_gray = len(gray_cars)
-    light_grays = gray_cars[:n_gray // 2]
-    dark_grays = gray_cars[n_gray // 2:]
-    left_cols = max(1, math.ceil(len(light_grays) / total_rows)) if light_grays else 0
-    right_cols = max(1, math.ceil(len(dark_grays) / total_rows)) if dark_grays else 0
-    mid_start = left_cols
-    mid_end = total_cols - right_cols
-    mid_width = max(1, mid_end - mid_start)
-
-    # Lado esquerdo: cinzas claros
-    left_positions = [(r, c) for c in range(left_cols) for r in range(total_rows)]
-    for (car, h, s, v), (r, c) in zip(light_grays, left_positions):
-        er, ec = _find_nearest_empty(grid, r, c, total_rows, total_cols)
-        if er is not None:
-            grid[er][ec] = car
-
-    # Lado direito: cinzas escuros
-    right_positions = [(r, c) for c in range(total_cols - right_cols, total_cols) for r in range(total_rows)]
-    for (car, h, s, v), (r, c) in zip(dark_grays, right_positions):
-        er, ec = _find_nearest_empty(grid, r, c, total_rows, total_cols)
-        if er is not None:
-            grid[er][ec] = car
-
-    # Place chromatic cars in middle band (hue -> col, value -> row)
-    for car, h, s, v in chroma_cars:
-        col = mid_start + int(h * mid_width) % mid_width
-        row = int((1.0 - v) * total_rows) if total_rows > 1 else 0
-        row = min(row, total_rows - 1)
-        row, col = _find_nearest_empty(grid, row, col, total_rows, total_cols)
-        if row is not None:
-            grid[row][col] = car
-
-    # Build assignment from grid → real slot coordinates
-    assignment = {}
-    used = set()
-    for r in range(total_rows):
-        for c in range(total_cols):
-            car = grid[r][c]
-            if car is None or car.id in assignment:
-                continue
-            if (r, c) in slot_map and (r, c) not in used:
-                real = slot_map[(r, c)]
-                assignment[car.id] = real
-                used.add((r, c))
-            else:
-                # Find nearest real slot
-                found = _find_nearest_real_slot(slot_map, used, r, c, total_rows, total_cols)
-                if found:
-                    assignment[car.id] = slot_map[found]
-                    used.add(found)
-
-    # Remaining cars → remaining slots
-    remaining_cars = [c for c in cars if c.id not in assignment]
-    all_slots = [(gr, gc) for gr, gc in slot_map if (gr, gc) not in used]
-    for car, pos in zip(remaining_cars, all_slots):
-        assignment[car.id] = slot_map[pos]
-        used.add(pos)
-
-    return assignment
 
 
 def _build_slot_list(shelves: list[ShelfConfig], wall: ParedeConfig = None,

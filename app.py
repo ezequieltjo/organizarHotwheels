@@ -2,7 +2,7 @@ import streamlit as st
 from pathlib import Path
 
 st.set_page_config(layout="wide")
-from models import Car, ShelfConfig, ParedeConfig
+from models import Car, ShelfConfig, ParedeConfig, GradientConfig
 from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      insert_shelf, get_all_shelves, update_shelf, delete_shelf,
                      clear_positions, apply_positions, get_wall_config, save_wall_config,
@@ -24,7 +24,7 @@ PHOTOS_DIR.mkdir(exist_ok=True)
 
 ORGANIZERS = {
     "Arco-íris (por cor)": organize_rainbow,
-    "Degradê (similaridade)": organize_gradient,
+    "Degradê (moldura)": organize_gradient,
     "Por marca (carro)": organize_by_brand,
     "Por fabricante (miniatura)": organize_by_fabricante,
     "Por ano": organize_by_year,
@@ -496,11 +496,36 @@ with tab3:
 
         modo = st.selectbox("Modo de organização", list(ORGANIZERS.keys()))
 
+        # Controles exclusivos do modo Degradê (moldura)
+        deg_cfg = None
+        if modo.startswith("Degradê"):
+            dsat = st.slider("Saturação máx p/ cinza (%)", 0, 50, 12, key="deg_sat")
+            partial_opts = {"Colorido preenche": "colorido",
+                            "Vagas vazias": "vazio",
+                            "Estica gradiente": "estica"}
+            interior_opts = {"Hue+value": "hue_value",
+                             "Similaridade": "similaridade"}
+            dpartial = st.selectbox("Anel parcial", list(partial_opts), key="deg_partial")
+            dinterior = st.selectbox("Miolo colorido", list(interior_opts), key="deg_interior")
+            deg_cfg = GradientConfig(
+                sat_threshold_pct=float(dsat),
+                partial_strategy=partial_opts[dpartial],
+                interior_strategy=interior_opts[dinterior],
+            )
+
         if st.button("Gerar organização"):
             func = ORGANIZERS[modo]
-            assignment = func(cars, shelves, wall, disabled)
+            if deg_cfg is not None and func is organize_gradient:
+                assignment = func(cars, shelves, wall, disabled, config=deg_cfg)
+            else:
+                assignment = func(cars, shelves, wall, disabled)
             st.session_state.assignment = assignment
             st.rerun()
+
+        # Auto re-rodar ao mexer nos controles do Degradê
+        if deg_cfg is not None and st.session_state.get("assignment"):
+            st.session_state.assignment = organize_gradient(
+                cars, shelves, wall, disabled, config=deg_cfg)
 
         if "assignment" in st.session_state and st.session_state.assignment:
             assignment = st.session_state.assignment

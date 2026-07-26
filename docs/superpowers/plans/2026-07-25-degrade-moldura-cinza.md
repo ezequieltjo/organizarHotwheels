@@ -337,7 +337,7 @@ def _ordered_cells(rows: int, cols: int) -> list[tuple[int, int]]:
                 for c in range(offset, offset + w):
                     cells.append((r, c))
             break
-        cells.extend(_ring_cells(rows, cols, offset))
+        cells.extend(_ring_cells(h, w, offset))
         offset += 1
     return list(dict.fromkeys(cells))
 ```

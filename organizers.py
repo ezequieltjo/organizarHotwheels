@@ -320,6 +320,36 @@ def _grid_to_assignment(grid: list, cars: list, slot_map: dict, total_rows: int,
     return assignment
 
 
+def _ring_fill(cars, shelves, wall, disabled, cfg):
+    """Posiciona cinzas como moldura (anel horário) ao redor dos coloridos."""
+    slots = _build_slot_list(shelves, wall, disabled)
+    if not slots:
+        return {}
+    total_rows = max(s[3] for s in slots) + 1
+    total_cols = max(s[4] for s in slots) + 1
+    slot_map = {(gr, gc): (sid, sr, sc) for sid, sr, sc, gr, gc in slots}
+
+    sat = cfg.sat_threshold_pct / 100.0
+    grays, chroma = [], []
+    for car in cars:
+        h, s, v = _hex_to_hsv(car.cor_hex)
+        (grays if _is_gray(car.cor_hex, sat) else chroma).append((car, h, s, v))
+    grays.sort(key=lambda x: x[3])  # preto (value baixo) primeiro
+
+    grid = [[None] * total_cols for _ in range(total_rows)]
+    all_cells = [c for c in _ordered_cells(total_rows, total_cols) if c in slot_map]
+    if total_rows >= 2 and total_cols >= 2:
+        outer_ring = [c for c in _ring_cells(total_rows, total_cols, 0) if c in slot_map]
+    else:
+        outer_ring = list(all_cells)
+    outer_set = set(outer_ring)
+
+    _place_grays(grid, grays, all_cells, outer_ring, cfg.partial_strategy)
+    _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg)
+
+    return _grid_to_assignment(grid, cars, slot_map, total_rows, total_cols)
+
+
 def _gradient_2d_fill(cars: list[Car], shelves: list[ShelfConfig], wall: ParedeConfig = None,
                       disabled: dict | None = None) -> dict:
     # Build slot list: (shelf_id, shelf_row, shelf_col, global_row, global_col)

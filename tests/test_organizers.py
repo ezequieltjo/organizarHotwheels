@@ -3,7 +3,7 @@ from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
                         organize_favorites_first, total_slots, _fill_grid, _fill_wall_grid,
                         _is_gray, _ring_cells, _ordered_cells,
-                        _place_grays, _place_chroma, _grid_to_assignment)
+                        _place_grays, _place_chroma, _grid_to_assignment, _ring_fill)
 
 
 def make_cars():
@@ -402,3 +402,89 @@ def test_grid_to_assignment_maps_to_real_slots():
     slot_map = {(0, 0): (1, 0, 0), (0, 1): (1, 0, 1)}
     res = _grid_to_assignment(grid, [grid[0][0], grid[0][1]], slot_map, 1, 2)
     assert res == {1: (1, 0, 0), 2: (1, 0, 1)}
+
+
+# --- _ring_fill integration ---
+
+def _neutrals(n):
+    """n carros neutros do preto (value 0) ao branco (value 1)."""
+    out = []
+    for i in range(n):
+        v = int(255 * i / (n - 1)) if n > 1 else 128
+        out.append(Car(id=100 + i, modelo=f"g{i}", cor_hex=f"#{v:02X}{v:02X}{v:02X}"))
+    return out
+
+
+def test_ring_fill_black_at_seam_white_adjacent_full_ring():
+    # 3x6 perímetro = 14; preenche o anel inteiro
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    grays = _neutrals(14)
+    cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="vazio")
+    res = _ring_fill(grays, shelves, wall=None, disabled=None, cfg=cfg)
+    black_id = 100                 # value 0 -> #000000
+    white_id = 100 + 13            # value 1 -> #FFFFFF
+    assert res[black_id][1:] == (0, 3)    # seam_right
+    assert res[white_id][1:] == (0, 2)    # seam_left, adjacente
+
+
+def test_ring_fill_concentric_overflow():
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=5, colunas=5)]
+    grays = _neutrals(20)          # anel externo 5x5 = 16; 4 no interno
+    cfg = GradientConfig(sat_threshold_pct=5.0)
+    res = _ring_fill(grays, shelves, wall=None, disabled=None, cfg=cfg)
+    outer = set(_ring_cells(5, 5, 0))
+    on_outer = sum(1 for _sid, r, c in res.values() if (r, c) in outer)
+    assert on_outer == 16
+    assert len(res) == 20
+
+
+def test_ring_fill_partial_colorido_puts_chroma_on_perimeter():
+    grays = _neutrals(1)
+    chroma = [Car(id=i, cor_hex=h) for i, h in
+              [(i, f"#{(i * 40) % 256:02X}0000") for i in range(1, 11)]]
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="colorido")
+    res = _ring_fill(grays + chroma, shelves, wall=None, disabled=None, cfg=cfg)
+    outer = set(_ring_cells(3, 6, 0))
+    on_outer = sum(1 for cid in range(1, 11) if res[cid][1:] in outer)
+    assert on_outer > 0
+
+
+def test_ring_fill_partial_vazio_keeps_chroma_off_perimeter():
+    grays = _neutrals(1)
+    chroma = [Car(id=1, cor_hex="#FF0000"), Car(id=2, cor_hex="#00FF00"),
+              Car(id=3, cor_hex="#0000FF")]
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="vazio")
+    res = _ring_fill(grays + chroma, shelves, wall=None, disabled=None, cfg=cfg)
+    outer = set(_ring_cells(3, 6, 0))
+    for cid in (1, 2, 3):
+        assert res[cid][1:] not in outer
+
+
+def test_ring_fill_interior_similaridade_groups_reds():
+    chroma = [Car(id=1, cor_hex="#FF0000"), Car(id=2, cor_hex="#FF1010"),
+              Car(id=3, cor_hex="#0000FF")]
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    cfg = GradientConfig(sat_threshold_pct=0.0, interior_strategy="similaridade")
+    res = _ring_fill(chroma, shelves, wall=None, disabled=None, cfg=cfg)
+    p1, p2 = res[1][1:], res[2][1:]
+    assert abs(p1[0] - p2[0]) + abs(p1[1] - p2[1]) <= 2
+
+
+def test_ring_fill_no_grays():
+    chroma = [Car(id=1, cor_hex="#FF0000"), Car(id=2, cor_hex="#00FF00"),
+              Car(id=3, cor_hex="#0000FF")]
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    res = _ring_fill(chroma, shelves, wall=None, disabled=None,
+                     cfg=GradientConfig())
+    assert len(res) == 3
+
+
+def test_ring_fill_respects_disabled():
+    grays = _neutrals(3)
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    disabled = {1: {"rows": [], "cells": [(0, 3)]}}  # bloqueia seam preto
+    cfg = GradientConfig(sat_threshold_pct=5.0)
+    res = _ring_fill(grays, shelves, wall=None, disabled=disabled, cfg=cfg)
+    assert (1, 0, 3) not in res.values()

@@ -449,3 +449,44 @@ def test_ring_fill_respects_disabled():
     cfg = GradientConfig(sat_threshold_pct=5.0)
     res = _ring_fill(grays, shelves, wall=None, disabled=disabled, cfg=cfg)
     assert (1, 0, 3) not in res.values()
+
+
+# --- edge-case coverage gaps (Task 9: deferred from T5/T6 reviews) ---
+
+def test_ring_fill_degenerate_single_row():
+    # M1 (T6 review): 1-row shelf falls back to all_cells as outer_ring.
+    cars = [Car(id=1, cor_hex="#FF0000"), Car(id=2, cor_hex="#000000"),
+            Car(id=3, cor_hex="#FFFFFF")]
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=1, colunas=4)]
+    cfg = GradientConfig(sat_threshold_pct=5.0)
+    res = _ring_fill(cars, shelves, wall=None, disabled=None, cfg=cfg)
+    assert len(res) == 3
+    assert set(res.keys()) == {1, 2, 3}
+
+
+def test_ring_fill_partial_estica_spreads():
+    # M2 (T6 review): grays spread around the ring at _ring_fill level.
+    grays = _neutrals(3)  # black, mid, white
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="estica")
+    res = _ring_fill(grays, shelves, wall=None, disabled=None, cfg=cfg)
+    outer = set(_ring_cells(3, 6, 0))
+    positions = [res[c.id][1:] for c in grays]
+    # todos no perímetro e espaçados (nenhum par adjacente orthogonal)
+    assert all(p in outer for p in positions)
+    for i in range(len(positions)):
+        for j in range(i + 1, len(positions)):
+            assert (abs(positions[i][0] - positions[j][0]) +
+                    abs(positions[i][1] - positions[j][1])) > 1
+
+
+def test_grid_to_assignment_fallback_to_nearest_real_slot():
+    # Deferred from T5 review: a grid cell not in slot_map triggers
+    # _find_nearest_real_slot.
+    grid = [[None, None, None]]
+    grid[0][0] = Car(id=1, cor_hex="#FF0000")
+    grid[0][2] = Car(id=2, cor_hex="#00FF00")  # col 2 NOT in slot_map
+    slot_map = {(0, 0): (1, 0, 0), (0, 1): (1, 0, 1)}  # only cols 0,1 are real
+    res = _grid_to_assignment(grid, [grid[0][0], grid[0][2]], slot_map, 1, 3)
+    assert res[1] == (1, 0, 0)
+    assert res[2] == (1, 0, 1)  # nearest real slot to (0,2) is (0,1)

@@ -3,7 +3,8 @@ from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
                         organize_favorites_first, total_slots, _fill_grid, _fill_wall_grid,
                         _is_gray, _ring_cells, _ordered_cells,
-                        _place_grays, _place_chroma, _grid_to_assignment, _ring_fill)
+                        _place_grays, _place_chroma, _grid_to_assignment, _ring_fill,
+                        _find_nearest_allowed)
 
 
 def make_cars():
@@ -331,16 +332,15 @@ def test_place_grays_fill_outer_then_inner():
 
 
 def test_place_grays_estica_spreads():
+    # Após fix Task 9: endpoints cobrem o anel inteiro — preto em seam_right,
+    # branco em seam_left (adjacentes por construção do anel).
     grid = _make_grid(3, 6)
     all_cells = _ordered_cells(3, 6)
     outer = _ring_cells(3, 6, 0)
     grays = [(_gray_car(10, 0.0), 0, 0, 0.0), (_gray_car(11, 1.0), 0, 0, 1.0)]
     _place_grays(grid, grays, all_cells, outer, "estica")
-    assert grid[0][3].id == 10
-    white_cells = [(r, c) for r in range(3) for c in range(6)
-                   if grid[r][c] and grid[r][c].id == 11]
-    br, bc = white_cells[0]
-    assert abs(br - 0) + abs(bc - 3) > 1  # não adjacente (espaçado)
+    assert grid[0][3].id == 10            # preto em outer[0] = seam_right
+    assert grid[0][2].id == 11            # branco em outer[-1] = seam_left
 
 
 def test_place_chroma_vazio_stays_off_perimeter():
@@ -465,19 +465,23 @@ def test_ring_fill_degenerate_single_row():
 
 
 def test_ring_fill_partial_estica_spreads():
-    # M2 (T6 review): grays spread around the ring at _ring_fill level.
+    # M2 (T6 review) + fix Task 9: grays distribuídos no anel; preto em
+    # seam_right e branco em seam_left (sempre adjacentes por construção).
+    # O cinza do meio deve ficar fora desse par adjacente.
     grays = _neutrals(3)  # black, mid, white
     shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
     cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="estica")
     res = _ring_fill(grays, shelves, wall=None, disabled=None, cfg=cfg)
     outer = set(_ring_cells(3, 6, 0))
-    positions = [res[c.id][1:] for c in grays]
-    # todos no perímetro e espaçados (nenhum par adjacente orthogonal)
-    assert all(p in outer for p in positions)
-    for i in range(len(positions)):
-        for j in range(i + 1, len(positions)):
-            assert (abs(positions[i][0] - positions[j][0]) +
-                    abs(positions[i][1] - positions[j][1])) > 1
+    black_pos = res[grays[0].id][1:]
+    mid_pos = res[grays[1].id][1:]
+    white_pos = res[grays[2].id][1:]
+    assert all(p in outer for p in (black_pos, mid_pos, white_pos))
+    assert black_pos == (0, 3)  # seam_right
+    assert white_pos == (0, 2)  # seam_left
+    # middle gray must NOT be adjacent to either endpoint
+    assert (abs(mid_pos[0] - black_pos[0]) + abs(mid_pos[1] - black_pos[1])) > 1
+    assert (abs(mid_pos[0] - white_pos[0]) + abs(mid_pos[1] - white_pos[1])) > 1
 
 
 def test_grid_to_assignment_fallback_to_nearest_real_slot():
@@ -490,3 +494,49 @@ def test_grid_to_assignment_fallback_to_nearest_real_slot():
     res = _grid_to_assignment(grid, [grid[0][0], grid[0][2]], slot_map, 1, 3)
     assert res[1] == (1, 0, 0)
     assert res[2] == (1, 0, 1)  # nearest real slot to (0,2) is (0,1)
+
+
+# --- Final-review fixes (Task 9): search radius, miolo-first, estica endpoints ---
+
+def test_find_nearest_allowed_reaches_far_corner():
+    # 4x4 grid, only (0,0) allowed; target (3,3) tem Manhattan 6 = (R-1)+(C-1).
+    # Antes do fix o raio era max(R,C)-1 = 3 e (0,0) ficava inalcançável.
+    grid = _make_grid(4, 4)
+    allowed = {(0, 0)}
+    assert _find_nearest_allowed(grid, 3, 3, allowed, 4, 4) == (0, 0)
+
+
+def test_place_chroma_hue_value_miolo_first():
+    # 3x6 grid, 1 cinza + 4 cromos (capacidade do miolo = 4).
+    # partial_strategy=colorido: todos os cromos devem ir para o miolo.
+    grid = _make_grid(3, 6)
+    grid[0][3] = _gray_car(10, 0.0)  # cinza occupy seam_right
+    outer_set = set(_ring_cells(3, 6, 0))
+    chroma = [(Car(id=i, cor_hex=h), h_idx / 4.0, 1.0, 1.0)
+              for i, (h, h_idx) in enumerate(
+                  [("#FF0000", 0), ("#00FF00", 1), ("#0000FF", 2), ("#FFFF00", 3)],
+                  start=1)]
+    cfg = GradientConfig(sat_threshold_pct=0.0, partial_strategy="colorido",
+                         interior_strategy="hue_value")
+    _place_chroma(grid, chroma, 3, 6, outer_set, cfg)
+    placed = [(r, c) for r in range(3) for c in range(6)
+              if grid[r][c] and grid[r][c].id in (1, 2, 3, 4)]
+    assert len(placed) == 4
+    assert all(cell not in outer_set for cell in placed)
+
+
+def test_place_grays_estica_white_at_seam():
+    # 3x6 (anel 14 células); 3 cinzas (preto, mid, branco).
+    # Branco (value alto) deve ir para outer_ring[-1] = seam_left (0,2);
+    # preto (value baixo) para outer_ring[0] = seam_right (0,3).
+    grid = _make_grid(3, 6)
+    all_cells = _ordered_cells(3, 6)
+    outer = _ring_cells(3, 6, 0)
+    grays = [(_gray_car(10, 0.0), 0, 0, 0.0),
+             (_gray_car(11, 0.5), 0, 0, 0.5),
+             (_gray_car(12, 1.0), 0, 0, 1.0)]
+    _place_grays(grid, grays, all_cells, outer, "estica")
+    assert outer[0] == (0, 3)
+    assert outer[-1] == (0, 2)
+    assert grid[0][3].id == 10  # preto no seam_right
+    assert grid[0][2].id == 12  # branco no seam_left

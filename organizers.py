@@ -222,10 +222,14 @@ def _ordered_cells(rows: int, cols: int) -> list[tuple[int, int]]:
 
 
 def _find_nearest_allowed(grid, row: int, col: int, allowed: set[tuple[int, int]], total_rows: int, total_cols: int) -> tuple[int, int] | None:
-    """Célula vazia mais próxima de (row, col) dentro do conjunto permitido."""
+    """Célula vazia mais próxima de (row, col) dentro do conjunto permitido.
+
+    Raio cobre a distância de Manhattan máxima possível, (R-1)+(C-1),
+    alcançando qualquer célula do grid retangular.
+    """
     if (row, col) in allowed:
         return (row, col)
-    for dist in range(1, max(total_rows, total_cols)):
+    for dist in range(1, total_rows + total_cols):
         for dr in range(-dist, dist + 1):
             for dc in range(-dist, dist + 1):
                 if abs(dr) + abs(dc) != dist:
@@ -247,9 +251,12 @@ def _place_grays(grid: list, grays: list, all_cells: list[tuple[int, int]], oute
     rows, cols = len(grid), len(grid[0])
     n = len(grays)
     if strategy == "estica" and n < len(outer_ring):
-        step = max(1, len(outer_ring) // n)
+        ring_len = len(outer_ring)
         for i, (car, _h, _s, _v) in enumerate(grays):
-            idx = min(i * step, len(outer_ring) - 1)
+            if n > 1:
+                idx = round(i * (ring_len - 1) / (n - 1))
+            else:
+                idx = 0
             r, c = outer_ring[idx]
             if grid[r][c] is None:
                 grid[r][c] = car
@@ -285,15 +292,23 @@ def _place_chroma(grid: list, chroma: list, total_rows: int, total_cols: int, ou
             grid[cell[0]][cell[1]] = car
         return
 
+    # hue_value: miolo-first quando colorido; vazio já excluiu o perímetro.
+    interior_allowed = {cell for cell in allowed if cell not in outer_set}
+    perimeter_allowed = {cell for cell in allowed if cell in outer_set}
     for car, h, _s, v in chroma:
         target_col = int(h * total_cols) % total_cols
         target_row = int((1.0 - v) * total_rows) if total_rows > 1 else 0
         target_row = min(max(target_row, 0), total_rows - 1)
-        cell = _find_nearest_allowed(grid, target_row, target_col, allowed,
-                                     total_rows, total_cols)
-        if cell is not None:
-            grid[cell[0]][cell[1]] = car
-            allowed.discard(cell)
+        cell = _find_nearest_allowed(grid, target_row, target_col,
+                                     interior_allowed, total_rows, total_cols)
+        if cell is None:
+            cell = _find_nearest_allowed(grid, target_row, target_col,
+                                         perimeter_allowed, total_rows, total_cols)
+        if cell is None:
+            continue
+        grid[cell[0]][cell[1]] = car
+        interior_allowed.discard(cell)
+        perimeter_allowed.discard(cell)
 
 
 def _grid_to_assignment(grid: list, cars: list, slot_map: dict, total_rows: int, total_cols: int) -> dict:

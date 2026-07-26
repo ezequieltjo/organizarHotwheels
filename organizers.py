@@ -320,7 +320,9 @@ def _grid_to_assignment(grid: list, cars: list, slot_map: dict, total_rows: int,
     return assignment
 
 
-def _ring_fill(cars, shelves, wall, disabled, cfg):
+def _ring_fill(cars: list[Car], shelves: list[ShelfConfig],
+               wall: ParedeConfig | None, disabled: dict | None,
+               cfg: GradientConfig) -> dict:
     """Posiciona cinzas como moldura (anel horário) ao redor dos coloridos."""
     slots = _build_slot_list(shelves, wall, disabled)
     if not slots:

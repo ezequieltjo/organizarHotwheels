@@ -11,21 +11,17 @@ def _slider_keys(cor_key: str) -> tuple[str, str, str, str, str, str]:
 
 
 def _on_rgb_change(cor_key: str) -> None:
-    """Callback: usuário mexeu em RGB -> deriva HSV e atualiza cor."""
-    rk, gk, bk, hk, sk, vk = _slider_keys(cor_key)
-    new_hex = rgb_to_hex(st.session_state[rk], st.session_state[gk], st.session_state[bk])
-    h, s, v = hex_to_hsv_deg(new_hex)
-    st.session_state[hk], st.session_state[sk], st.session_state[vk] = h, s, v
-    st.session_state[cor_key] = new_hex
+    """Callback: RGB mudou -> recompõe hex. HSV re-derivado no render, não aqui."""
+    rk, gk, bk, _hk, _sk, _vk = _slider_keys(cor_key)
+    st.session_state[cor_key] = rgb_to_hex(
+        st.session_state[rk], st.session_state[gk], st.session_state[bk])
 
 
 def _on_hsv_change(cor_key: str) -> None:
-    """Callback: usuário mexeu em HSV -> deriva RGB e atualiza cor."""
-    rk, gk, bk, hk, sk, vk = _slider_keys(cor_key)
+    """Callback: HSV mudou -> recompõe hex via HSV->RGB. RGB re-derivado no render."""
+    _rk, _gk, _bk, hk, sk, vk = _slider_keys(cor_key)
     r, g, b = hsv_deg_to_rgb(st.session_state[hk], st.session_state[sk], st.session_state[vk])
-    new_hex = rgb_to_hex(r, g, b)
-    st.session_state[rk], st.session_state[gk], st.session_state[bk] = r, g, b
-    st.session_state[cor_key] = new_hex
+    st.session_state[cor_key] = rgb_to_hex(r, g, b)
 
 
 def render_color_sliders(cor_key: str) -> None:
@@ -38,21 +34,12 @@ def render_color_sliders(cor_key: str) -> None:
     rk, gk, bk, hk, sk, vk = _slider_keys(cor_key)
     hex_now = st.session_state.get(cor_key) or DEFAULT_COLOR
 
-    # Inicializa sliders a partir da cor atual (antes de instanciá-los)
+    # Sliders sempre re-derivados de cor_key (única verdade): color_picker nativo,
+    # swatches da foto ou on_change podem mudar cor_key entre runs.
     r0, g0, b0 = hex_para_rgb(hex_now)
     h0, s0, v0 = hex_to_hsv_deg(hex_now)
-    st.session_state.setdefault(rk, r0)
-    st.session_state.setdefault(gk, g0)
-    st.session_state.setdefault(bk, b0)
-    st.session_state.setdefault(hk, h0)
-    st.session_state.setdefault(sk, s0)
-    st.session_state.setdefault(vk, v0)
-
-    # Fonte externa (color_picker nativo / swatch) mudou cor_key -> resync sliders
-    slider_hex = rgb_to_hex(st.session_state[rk], st.session_state[gk], st.session_state[bk])
-    if slider_hex.upper() != hex_now.upper():
-        st.session_state[rk], st.session_state[gk], st.session_state[bk] = r0, g0, b0
-        st.session_state[hk], st.session_state[sk], st.session_state[vk] = h0, s0, v0
+    st.session_state[rk], st.session_state[gk], st.session_state[bk] = r0, g0, b0
+    st.session_state[hk], st.session_state[sk], st.session_state[vk] = h0, s0, v0
 
     final_hex = st.session_state.get(cor_key) or DEFAULT_COLOR
     st.markdown("**Ajuste fino da cor (sliders)**")

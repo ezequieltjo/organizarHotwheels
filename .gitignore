@@ -6,3 +6,7 @@ __pycache__/
 # Symlinked skill docs (point into .venv/, break on other machines)
 .agents/
 .claude/skills/
+
+# Tool/test artifacts
+.codegraph/
+.coverage

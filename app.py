@@ -99,7 +99,7 @@ def _remove_photo(path: str | None) -> None:
 
 
 # --- Main tabs ---
-tab1, tab2, tab3 = st.tabs(["Coleção", "Expositores", "Organizar"])
+tab1, tab4, tab2, tab3 = st.tabs(["Coleção", "Estatísticas", "Expositores", "Organizar"])
 
 with tab1:
     st.header(f"Coleção: {len(st.session_state.cars)} carrinhos")
@@ -575,6 +575,52 @@ with tab3:
         refresh()
         st.success(f"{len(cars_imported)} carros importados!")
         st.rerun()
+
+with tab4:
+    st.header("Estatísticas")
+    cars = st.session_state.cars
+    if not cars:
+        st.info("Nenhum carro na coleção ainda.")
+    else:
+        import pandas as pd
+        import plotly.express as px
+
+        df = pd.DataFrame([{
+            "marca": c.marca,
+            "fabricante": c.fabricante,
+            "serie_tipo": c.serie_tipo,
+            "ano": c.ano,
+        } for c in cars])
+        # Vazios viram rótulo legível; ano 0 = sem ano.
+        for col in ("marca", "fabricante", "serie_tipo"):
+            df[col] = df[col].replace("", "(sem)")
+        df["ano"] = df["ano"].astype(str).replace("0", "(sem ano)")
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total de carros", len(df))
+        m2.metric("Marcas", df["marca"].nunique())
+        m3.metric("Fabricantes", df["fabricante"].nunique())
+        m4.metric("Séries", df["serie_tipo"].nunique())
+
+        st.divider()
+
+        def _bar(field: str, title: str, sort_index: bool = False) -> None:
+            counts = df[field].value_counts()
+            if sort_index:
+                counts = counts.sort_index()
+            counts = counts.reset_index()
+            counts.columns = [field, "quantidade"]
+            fig = px.bar(counts, x=field, y="quantidade", title=title, text="quantidade")
+            fig.update_layout(showlegend=False, xaxis_tickangle=-45, height=380)
+            st.plotly_chart(fig, use_container_width=True)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            _bar("marca", "Carros por marca")
+            _bar("serie_tipo", "Carros por série")
+        with col_b:
+            _bar("fabricante", "Carros por fabricante")
+            _bar("ano", "Carros por ano", sort_index=True)
 
 # Single script at end: button styling + toast
 _toast_type = st.session_state.pop("car_toast", None)

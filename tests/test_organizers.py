@@ -298,7 +298,7 @@ def test_organize_rainbow_with_wall():
 
 
 def test_organize_without_wall_falls_back():
-    """Without wall, uses sequential fill"""
+    """Without wall, ring fill still covers stacked shelves"""
     cars = make_cars()
     shelves = [
         ShelfConfig(id=1, nome="P1", linhas=1, colunas=1),
@@ -306,8 +306,7 @@ def test_organize_without_wall_falls_back():
     ]
     result = organize_rainbow(cars, shelves, wall=None)
     assert len(result) == 3
-    # Same as _fill_grid sequential
-    assert result[1] == (1, 0, 0)
+    assert set(result.values()) == {(1, 0, 0), (2, 0, 0), (2, 0, 1)}
 
 
 # --- ring placement helpers (Task 5) ---
@@ -321,12 +320,11 @@ def _gray_car(cid, value01):
     return Car(id=cid, modelo=f"g{cid}", cor_hex=f"#{v:02X}{v:02X}{v:02X}")
 
 
-def test_place_grays_fill_outer_then_inner():
+def test_place_grays_fill_outer_ring_only():
     grid = _make_grid(3, 6)
-    all_cells = _ordered_cells(3, 6)
     outer = _ring_cells(3, 6, 0)
     grays = [(_gray_car(10, 0.0), 0, 0, 0.0), (_gray_car(11, 1.0), 0, 0, 1.0)]
-    _place_grays(grid, grays, all_cells, outer, "colorido")
+    _place_grays(grid, grays, outer, "colorido")
     assert grid[0][3].id == 10  # preto no seam_right (cols//2 = 3)
     assert grid[0][4].id == 11  # branco na próxima posição do anel
 
@@ -335,10 +333,9 @@ def test_place_grays_estica_spreads():
     # Após fix Task 9: endpoints cobrem o anel inteiro — preto em seam_right,
     # branco em seam_left (adjacentes por construção do anel).
     grid = _make_grid(3, 6)
-    all_cells = _ordered_cells(3, 6)
     outer = _ring_cells(3, 6, 0)
     grays = [(_gray_car(10, 0.0), 0, 0, 0.0), (_gray_car(11, 1.0), 0, 0, 1.0)]
-    _place_grays(grid, grays, all_cells, outer, "estica")
+    _place_grays(grid, grays, outer, "estica")
     assert grid[0][3].id == 10            # preto em outer[0] = seam_right
     assert grid[0][2].id == 11            # branco em outer[-1] = seam_left
 
@@ -390,13 +387,46 @@ def test_ring_fill_black_at_seam_white_adjacent_full_ring():
 
 def test_ring_fill_concentric_overflow():
     shelves = [ShelfConfig(id=1, nome="P1", linhas=5, colunas=5)]
-    grays = _neutrals(20)          # anel externo 5x5 = 16; 4 no interno
+    grays = _neutrals(20)          # anel externo 5x5 = 16; 4 excedentes
     cfg = GradientConfig(sat_threshold_pct=5.0)
     res = _ring_fill(grays, shelves, wall=None, disabled=None, cfg=cfg)
     outer = set(_ring_cells(5, 5, 0))
     on_outer = sum(1 for _sid, r, c in res.values() if (r, c) in outer)
     assert on_outer == 16
     assert len(res) == 20
+
+
+def test_ring_fill_overflow_routed_by_tone():
+    # 5x5 anel = 16; excedentes i=16..19: i=16 cinza médio (v~0.84),
+    # i=17..19 brancos. Brancos agrupam no canto sup-esquerdo; cinza médio
+    # no canto inferior direito (mais escuro dos inferiores).
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=5, colunas=5)]
+    grays = _neutrals(20)
+    cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="vazio")
+    res = _ring_fill(grays, shelves, wall=None, disabled=None, cfg=cfg)
+    outer = set(_ring_cells(5, 5, 0))
+    assert res[117][1:] == (1, 1)  # branco: 1ª célula livre perto do canto
+    assert res[118][1:] == (1, 2)
+    assert res[119][1:] == (2, 1)
+    assert res[116][1:] == (3, 3)  # cinza médio: canto inferior direito
+    for i in range(16, 20):
+        assert res[100 + i][1:] not in outer
+
+
+def test_organize_rainbow_gray_moldura():
+    # 3x6: 14 cinzas enchem o anel; coloridos por hue no miolo (row-major).
+    grays = _neutrals(14)
+    chroma = [Car(id=1, cor_hex="#0000FF"),  # hue 0.67
+              Car(id=2, cor_hex="#FF0000"),  # hue 0.0
+              Car(id=3, cor_hex="#00FF00")]  # hue 0.33
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=3, colunas=6)]
+    res = organize_rainbow(grays + chroma, shelves)
+    outer = set(_ring_cells(3, 6, 0))
+    for i in range(14):
+        assert res[100 + i][1:] in outer
+    assert res[2][1:] == (1, 1)  # vermelho (hue 0) primeiro no miolo
+    assert res[3][1:] == (1, 2)  # verde
+    assert res[1][1:] == (1, 3)  # azul
 
 
 def test_ring_fill_partial_colorido_puts_chroma_on_perimeter():
@@ -530,12 +560,11 @@ def test_place_grays_estica_white_at_seam():
     # Branco (value alto) deve ir para outer_ring[-1] = seam_left (0,2);
     # preto (value baixo) para outer_ring[0] = seam_right (0,3).
     grid = _make_grid(3, 6)
-    all_cells = _ordered_cells(3, 6)
     outer = _ring_cells(3, 6, 0)
     grays = [(_gray_car(10, 0.0), 0, 0, 0.0),
              (_gray_car(11, 0.5), 0, 0, 0.5),
              (_gray_car(12, 1.0), 0, 0, 1.0)]
-    _place_grays(grid, grays, all_cells, outer, "estica")
+    _place_grays(grid, grays, outer, "estica")
     assert outer[0] == (0, 3)
     assert outer[-1] == (0, 2)
     assert grid[0][3].id == 10  # preto no seam_right

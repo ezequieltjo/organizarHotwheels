@@ -1,7 +1,7 @@
 import random
 import colorsys
 from models import Car, ShelfConfig, ParedeConfig, GradientConfig
-from color_utils import hex_para_hue, hex_para_rgb, distancia_rgb
+from color_utils import hex_para_rgb, distancia_rgb
 
 # assignment = {car_id: (shelf_id, row, col)}
 
@@ -22,9 +22,12 @@ def _filter_reserva(cars: list[Car]) -> list[Car]:
 
 def organize_rainbow(cars: list[Car], shelves: list[ShelfConfig],
                      wall: ParedeConfig = None, disabled: dict | None = None) -> dict:
+    """Arco-íris com moldura cinza: coloridos por hue no miolo, cinzas no anel."""
     cars = _filter_reserva(cars)
-    sorted_cars = sorted(cars, key=lambda c: hex_para_hue(c.cor_hex))
-    return _dispatch_fill(sorted_cars, shelves, wall, disabled)
+    if not cars:
+        return {}
+    return _ring_fill(cars, shelves, wall, disabled,
+                      GradientConfig(interior_strategy="arcoiris"))
 
 
 def organize_gradient(cars: list[Car], shelves: list[ShelfConfig],
@@ -240,11 +243,12 @@ def _find_nearest_allowed(grid, row: int, col: int, allowed: set[tuple[int, int]
     return None
 
 
-def _place_grays(grid: list, grays: list, all_cells: list[tuple[int, int]], outer_ring: list[tuple[int, int]], strategy: str) -> None:
-    """Posiciona cinzas (já ordenados preto->branco) no anel.
+def _place_grays(grid: list, grays: list, outer_ring: list[tuple[int, int]], strategy: str) -> None:
+    """Posiciona cinzas (já ordenados preto->branco) no anel externo.
 
     estica (e poucos cinzas): distribui uniformemente pelo anel externo.
-    caso geral: preenche anel externo e depois anéis internos (concêntrico).
+    caso geral: preenche o anel externo; excedentes ficam a cargo de
+    _place_overflow_grays.
     """
     if not grays:
         return
@@ -265,13 +269,55 @@ def _place_grays(grid: list, grays: list, all_cells: list[tuple[int, int]], oute
                 if er is not None:
                     grid[er][ec] = car
         return
-    for (car, _h, _s, _v), (r, c) in zip(grays, all_cells):
+    for (car, _h, _s, _v), (r, c) in zip(grays, outer_ring):
         if grid[r][c] is None:
             grid[r][c] = car
         else:
             er, ec = _find_nearest_empty(grid, r, c, rows, cols)
             if er is not None:
                 grid[er][ec] = car
+
+
+# Limiares de value (HSV) para classificar cinzas excedentes.
+BLACK_V = 0.15
+WHITE_V = 0.85
+
+
+def _corner_cells(rows: int, cols: int, anchor: tuple[int, int]) -> list[tuple[int, int]]:
+    """Células em cascas concêntricas (distância Chebyshev) a partir da quina."""
+    ar, ac = anchor
+    return sorted(((r, c) for r in range(rows) for c in range(cols)),
+                  key=lambda rc: (max(abs(rc[0] - ar), abs(rc[1] - ac)), rc))
+
+
+def _place_overflow_grays(grid: list, grays: list) -> None:
+    """Cinzas excedentes do anel externo (já ordenados preto->branco).
+
+    Agrupam-se nas pontas: brancos no canto superior esquerdo, pretos no
+    superior direito, cinzas médios nos cantos inferiores (escuros à
+    direita, claros à esquerda, como na última linha).
+    """
+    if not grays:
+        return
+    rows, cols = len(grid), len(grid[0])
+    blacks = [g for g in grays if g[3] <= BLACK_V]
+    whites = [g for g in grays if g[3] >= WHITE_V]
+    mids = [g for g in grays if BLACK_V < g[3] < WHITE_V]
+    half = (len(mids) + 1) // 2
+    segs = [
+        (whites, (0, 0)),                    # canto sup-esquerdo
+        (blacks, (0, cols - 1)),             # canto sup-direito
+        (mids[:half], (rows - 1, cols - 1)),  # cinzas escuros: inf-direito
+        (mids[half:], (rows - 1, 0)),         # cinzas claros: inf-esquerdo
+    ]
+    for cars, anchor in segs:
+        i = 0
+        for r, c in _corner_cells(rows, cols, anchor):
+            if i >= len(cars):
+                break
+            if grid[r][c] is None:
+                grid[r][c] = cars[i][0]
+                i += 1
 
 
 def _place_chroma(grid: list, chroma: list, total_rows: int, total_cols: int, outer_set: set[tuple[int, int]], cfg: GradientConfig) -> None:
@@ -283,8 +329,11 @@ def _place_chroma(grid: list, chroma: list, total_rows: int, total_cols: int, ou
     if cfg.partial_strategy == "vazio":
         allowed = {cell for cell in allowed if cell not in outer_set}
 
-    if cfg.interior_strategy == "similaridade":
-        ordered = _nearest_neighbor_sort([c[0] for c in chroma])
+    if cfg.interior_strategy in ("similaridade", "arcoiris"):
+        if cfg.interior_strategy == "similaridade":
+            ordered = _nearest_neighbor_sort([c[0] for c in chroma])
+        else:  # arcoiris: sequência por matiz (hue)
+            ordered = [c[0] for c in sorted(chroma, key=lambda x: x[1])]
         interior = sorted(cell for cell in allowed if cell not in outer_set)
         perimeter = sorted(cell for cell in allowed if cell in outer_set)
         seq = interior + perimeter
@@ -355,14 +404,14 @@ def _ring_fill(cars: list[Car], shelves: list[ShelfConfig],
     grays.sort(key=lambda x: x[3])  # preto (value baixo) primeiro
 
     grid = [[None] * total_cols for _ in range(total_rows)]
-    all_cells = [c for c in _ordered_cells(total_rows, total_cols) if c in slot_map]
     if total_rows >= 2 and total_cols >= 2:
         outer_ring = [c for c in _ring_cells(total_rows, total_cols, 0) if c in slot_map]
     else:
-        outer_ring = list(all_cells)
+        outer_ring = [c for c in _ordered_cells(total_rows, total_cols) if c in slot_map]
     outer_set = set(outer_ring)
 
-    _place_grays(grid, grays, all_cells, outer_ring, cfg.partial_strategy)
+    _place_grays(grid, grays, outer_ring, cfg.partial_strategy)
+    _place_overflow_grays(grid, grays[len(outer_ring):])
     _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg)
 
     return _grid_to_assignment(grid, cars, slot_map, total_rows, total_cols)

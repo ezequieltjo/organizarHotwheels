@@ -14,6 +14,7 @@ class Car:
     serie_tipo: str = ""
     favorito: bool = False
     reserva: bool = False
+    customizada: bool = False
     foto_path: str = ""
     expositor_id: Optional[int] = None
     posicao_linha: Optional[int] = None

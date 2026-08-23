@@ -18,6 +18,8 @@ from camera_component import render_color_picker
 from color_sliders import render_color_sliders
 import time
 import base64
+import io
+from PIL import Image
 
 PHOTOS_DIR = Path(__file__).parent / "photos"
 PHOTOS_DIR.mkdir(exist_ok=True)
@@ -78,6 +80,11 @@ def _img_b64(path) -> str:
 
 def _save_photo(photo_bytes: bytes, modelo: str, old_path: str | None = None) -> str:
     """Save photo to disk, return relative path. Remove previous photo when replacing."""
+    if photo_bytes[:4] == b"RIFF" and photo_bytes[8:12] == b"WEBP":
+        img = Image.open(io.BytesIO(photo_bytes)).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        photo_bytes = buf.getvalue()
     ts = int(time.time() * 1000)
     safe = "".join(c if c.isalnum() else "_" for c in modelo)[:30]
     filename = f"{safe}_{ts}.jpg"
@@ -102,7 +109,9 @@ def _remove_photo(path: str | None) -> None:
 tab1, tab4, tab2, tab3 = st.tabs(["Coleção", "Estatísticas", "Expositores", "Organizar"])
 
 with tab1:
-    st.header(f"Coleção: {len(st.session_state.cars)} carrinhos")
+    n_reservas = sum(1 for c in st.session_state.cars if c.reserva)
+    st.header(f"Coleção: {len(st.session_state.cars)} carrinhos"
+              + (f" ({n_reservas} reservas)" if n_reservas else ""))
 
     editing_id = st.session_state.get("editing_car_id")
     editing_car = None
@@ -139,7 +148,7 @@ with tab1:
             with pc1:
                 camera_photo = st.camera_input("📷 Tirar Foto", key="cam_edit")
             with pc2:
-                file_photo = st.file_uploader("📁 Upload (substituir)", type=["jpg", "jpeg", "png"], key="upload_edit")
+                file_photo = st.file_uploader("📁 Upload (substituir)", type=["jpg", "jpeg", "png", "webp"], key="upload_edit")
 
             source = camera_photo or file_photo
             if source:
@@ -177,6 +186,7 @@ with tab1:
                 default_color = st.session_state.get(_cor_key) or editing_car.cor_hex or "#808080"
                 cor_picker = st.color_picker("Seletor de cor", value=default_color, key=_cor_key)
                 reserva_edit = st.checkbox("Reserva (não posicionar em expositor)", value=editing_car.reserva)
+                customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
                 bc1, bc2 = st.columns(2)
                 save = bc1.form_submit_button("Salvar")
                 cancel = bc2.form_submit_button("Cancelar")
@@ -212,6 +222,7 @@ with tab1:
                         editing_car.serie_tipo = serie
                         editing_car.foto_path = foto_path
                         editing_car.reserva = reserva_edit
+                        editing_car.customizada = customizada_edit
                         if reserva_edit and editing_car.expositor_id is not None:
                             update_car(editing_car)
                             set_reserva(editing_car.id, True)  # atomic clear of position
@@ -238,7 +249,7 @@ with tab1:
             with pc1:
                 camera_photo = st.camera_input("📷 Tirar Foto", key="cam_add")
             with pc2:
-                file_photo = st.file_uploader("📁 Upload", type=["jpg", "jpeg", "png"], key="upload_add")
+                file_photo = st.file_uploader("📁 Upload", type=["jpg", "jpeg", "png", "webp"], key="upload_add")
 
             source = camera_photo or file_photo
             if source:
@@ -266,6 +277,7 @@ with tab1:
                 default_color = st.session_state.get("cor_picker_add") or "#808080"
                 cor_picker = st.color_picker("Seletor de cor", value=default_color, key="cor_picker_add")
                 reserva_add = st.checkbox("Reserva (não posicionar em expositor)", value=False)
+                customizada_add = st.checkbox("Customização", value=False)
                 if st.form_submit_button("Adicionar"):
                     marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
                     fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
@@ -285,6 +297,7 @@ with tab1:
                             cor=cor.strip(), cor_hex=cor_hex, serie_tipo=serie,
                             foto_path=foto_path,
                             reserva=reserva_add,
+                            customizada=customizada_add,
                         ))
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
@@ -303,17 +316,23 @@ with tab1:
             b = busca.lower()
             cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower() or b in c.fabricante.lower() or b in c.serie_tipo.lower()]
 
-        filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)), key="filtro_serie")
-        if filtro_serie != "Todas":
-            cars = [c for c in cars if c.serie_tipo == filtro_serie]
-
         ordem_opts = [
             "Adição (recentes primeiro)", "Adição (antigos primeiro)",
             "Alfabética (A-Z)", "Alfabética (Z-A)",
             "Ano (crescente)", "Ano (decrescente)",
             "Modificação (recentes primeiro)", "Modificação (antigos primeiro)",
         ]
-        ordem = st.selectbox("Ordenar por", ordem_opts, key="ordem_cars")
+        fc1, fc2, fc3 = st.columns(3)
+        with fc1:
+            ordem = st.selectbox("Ordenar por", ordem_opts, key="ordem_cars")
+        with fc2:
+            filtro_marca = st.selectbox("Filtrar marca", ["Todas"] + list(dict.fromkeys(c.marca for c in st.session_state.cars if c.marca)), key="filtro_marca")
+        with fc3:
+            filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)), key="filtro_serie")
+        if filtro_marca != "Todas":
+            cars = [c for c in cars if c.marca == filtro_marca]
+        if filtro_serie != "Todas":
+            cars = [c for c in cars if c.serie_tipo == filtro_serie]
         match ordem:
             case "Alfabética (A-Z)":
                 cars = sorted(cars, key=lambda c: c.modelo.lower())
@@ -347,7 +366,8 @@ with tab1:
                 with col2:
                     fav = "★ " if car.favorito else ""
                     reserva_marker = "📦 " if car.reserva else ""
-                    st.write(f"**{reserva_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
+                    customizada_marker = "🖌️ " if car.customizada else ""
+                    st.write(f"**{reserva_marker}{customizada_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
                 with col3:
                     bc1, bc2, bc3, bc4 = st.columns(4)
                     if bc1.button("⭐", key=f"fav_{car.id}"):

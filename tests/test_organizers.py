@@ -4,6 +4,7 @@ from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_favorites_first, total_slots, _fill_grid, _fill_wall_grid,
                         _is_gray, _ring_cells, _ordered_cells,
                         _place_grays, _place_chroma, _grid_to_assignment, _ring_fill,
+                        _split_overflow, _place_overflow_grays, _corner_segments,
                         _find_nearest_allowed)
 
 
@@ -397,20 +398,70 @@ def test_ring_fill_concentric_overflow():
 
 
 def test_ring_fill_overflow_routed_by_tone():
-    # 5x5 anel = 16; excedentes i=16..19: i=16 cinza médio (v~0.84),
-    # i=17..19 brancos. Brancos agrupam no canto sup-esquerdo; cinza médio
-    # no canto inferior direito (mais escuro dos inferiores).
+    # 5x5 anel = 16; excesso 4: 1 preto (i0), 2 cinzas medianos (i9, i10 —
+    # janela central, tons ~0.47/0.53 próximos do canto inf-direito do anel
+    # v~0.42; esquerdo é v~0.74), 1 branco (i19). Quinas coerentes com canto.
     shelves = [ShelfConfig(id=1, nome="P1", linhas=5, colunas=5)]
     grays = _neutrals(20)
     cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="vazio")
     res = _ring_fill(grays, shelves, wall=None, disabled=None, cfg=cfg)
     outer = set(_ring_cells(5, 5, 0))
-    assert res[117][1:] == (1, 1)  # branco: 1ª célula livre perto do canto
-    assert res[118][1:] == (1, 2)
-    assert res[119][1:] == (2, 1)
-    assert res[116][1:] == (3, 3)  # cinza médio: canto inferior direito
-    for i in range(16, 20):
+    assert res[119][1:] == (1, 1)  # branco mais claro: canto sup-esquerdo
+    assert res[100][1:] == (1, 3)  # preto mais escuro: canto sup-direito
+    assert res[109][1:] == (3, 3)  # mediano v~0.47: inf-direito (tom ~0.36)
+    assert res[110][1:] == (3, 1)  # mediano v~0.53: inf-esquerdo (tom ~0.68)
+    for i in (0, 9, 10, 19):
         assert res[100 + i][1:] not in outer
+
+
+def test_split_overflow_proportional_balance():
+    # Coleção real: muitos brancos, poucos pretos. Sem o split proporcional
+    # só brancos transbordariam para as quinas.
+    ring_cap = 30
+    blacks = [(Car(id=i, cor_hex="#000000"), 0, 0, 0.0) for i in range(5)]
+    mids = [(Car(id=100 + i, cor_hex="#808080"), 0, 0, 0.5) for i in range(10)]
+    whites = [(Car(id=200 + i, cor_hex="#FFFFFF"), 0, 0, 1.0) for i in range(40)]
+    grays = blacks + mids + whites  # 55 cinzas, anel 30 -> excesso 25
+    ring, corners = _split_overflow(grays, ring_cap)
+    assert len(ring) == 30 and len(corners) == 25
+    corner_vals = [g[3] for g in corners]
+    assert corner_vals.count(0.0) == round(25 * 5 / 55)     # pretos presentes
+    assert corner_vals.count(1.0) == round(25 * 40 / 55)    # brancos presentes
+    assert 0 < corner_vals.count(0.5)                       # cinzas presentes
+
+
+def test_overflow_mids_match_corner_tone():
+    # Cinzas médios vão para a quina inferior cujo tom do anel é o mais
+    # próximo: ambos os cinzas (v~0.37) estão mais perto do canto direito
+    # (v~0.35) que do esquerdo (v~0.70) — os dois agrupam à direita.
+    grid = _make_grid(4, 6)
+    grid[3][5] = Car(id=90, cor_hex="#595959")  # canto inf-direito, v~0.35
+    grid[3][0] = Car(id=91, cor_hex="#B3B3B3")  # canto inf-esquerdo, v~0.70
+    mids = [(_gray_car(80, 0.36), 0, 0, 0.36), (_gray_car(81, 0.38), 0, 0, 0.38)]
+    _place_overflow_grays(grid, _corner_segments(grid, mids))
+    assert grid[2][4].id == 80  # agrupados na diagonal da quina direita
+    assert grid[2][5].id == 81
+    assert grid[2][0] is None   # nada perto da quina esquerda
+
+
+def test_chroma_never_closer_to_corner_than_gray():
+    # Anel 16 (4x6) + 4 excedentes; 3 vermelhos escuros miram o canto
+    # inf-esquerdo (hue 0 -> col 0, value baixo -> fundo). Células perto
+    # da quina ficam reservadas aos cinzas: vermelho nunca mais perto da
+    # ponta que o cinza da quina.
+    shelves = [ShelfConfig(id=1, nome="P1", linhas=4, colunas=6)]
+    grays = _neutrals(20)
+    reds = [Car(id=1, cor_hex="#800000"), Car(id=2, cor_hex="#8B0000"),
+            Car(id=3, cor_hex="#700000")]
+    cfg = GradientConfig(sat_threshold_pct=5.0, partial_strategy="vazio")
+    res = _ring_fill(grays + reds, shelves, wall=None, disabled=None, cfg=cfg)
+    outer = set(_ring_cells(4, 6, 0))
+    anchor = (3, 0)
+    cheb = lambda p: max(abs(p[0] - anchor[0]), abs(p[1] - anchor[1]))
+    corner_gray_ds = [cheb(res[100 + i][1:]) for i in range(20)
+                      if res[100 + i][1:] not in outer]
+    red_ds = [cheb(res[cid][1:]) for cid in (1, 2, 3)]
+    assert min(red_ds) > min(corner_gray_ds)
 
 
 def test_organize_rainbow_gray_moldura():

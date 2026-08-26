@@ -290,26 +290,122 @@ def _corner_cells(rows: int, cols: int, anchor: tuple[int, int]) -> list[tuple[i
                   key=lambda rc: (max(abs(rc[0] - ar), abs(rc[1] - ac)), rc))
 
 
-def _place_overflow_grays(grid: list, grays: list) -> None:
-    """Cinzas excedentes do anel externo (já ordenados preto->branco).
+def _split_overflow(grays: list, ring_cap: int) -> tuple[list, list]:
+    """Separa cinzas entre anel e quinas quando excedem a capacidade do anel.
 
-    Agrupam-se nas pontas: brancos no canto superior esquerdo, pretos no
-    superior direito, cinzas médios nos cantos inferiores (escuros à
-    direita, claros à esquerda, como na última linha).
+    Quota proporcional ao tamanho de cada grupo de tom (preto/cinza/branco),
+    para que todas as pontas recebam carros (balanço simétrico) em vez de
+    transbordar só o extremo claro. Pretos e brancos saem pelos extremos
+    (mais escuros / mais claros); cinzas médios saem pela janela central da
+    faixa — os cantos inferiores do anel têm tons medianos, então os cinzas
+    mais medianos é que fazem match. O anel mantém o gradiente com o resto.
     """
+    excess = len(grays) - ring_cap
+    if excess <= 0:
+        return grays, []
+    total = len(grays)
+    idx_black = [i for i, g in enumerate(grays) if g[3] <= BLACK_V]
+    idx_mid = [i for i, g in enumerate(grays) if BLACK_V < g[3] < WHITE_V]
+    idx_white = [i for i, g in enumerate(grays) if g[3] >= WHITE_V]
+
+    corner: set[int] = set()
+    cum = 0
+    for grp, mode in ((idx_black, "dark"), (idx_mid, "mid"), (idx_white, "light")):
+        prev = round(excess * cum / total)
+        cum += len(grp)
+        q = min(len(grp), round(excess * cum / total) - prev)
+        if q <= 0:
+            continue
+        if mode == "dark":
+            corner.update(grp[:q])
+        elif mode == "light":
+            corner.update(grp[-q:])
+        else:  # cinzas: janela central (tons próximos dos cantos inferiores)
+            start = (len(grp) - q) // 2
+            corner.update(grp[start:start + q])
+    ring = [g for i, g in enumerate(grays) if i not in corner]
+    corners = [g for i, g in enumerate(grays) if i in corner]
+    return ring, corners
+
+
+def _corner_tone(grid: list, cell: tuple[int, int]) -> float | None:
+    """Value (HSV) do carro na célula, ou None se vazia."""
+    car = grid[cell[0]][cell[1]]
+    if car is None:
+        return None
+    return _hex_to_hsv(car.cor_hex)[2]
+
+
+def _corner_segments(grid: list, grays: list) -> list:
+    """Agrupa cinzas excedentes por quina, ordenados pela proximidade ao
+    tom do canto (mais parecido primeiro): brancos no canto sup-esquerdo,
+    pretos no sup-direito, cinzas médios nos inferiores — cada um no canto
+    cujo tom do anel é o mais próximo do seu."""
     if not grays:
-        return
+        return []
     rows, cols = len(grid), len(grid[0])
     blacks = [g for g in grays if g[3] <= BLACK_V]
     whites = [g for g in grays if g[3] >= WHITE_V]
     mids = [g for g in grays if BLACK_V < g[3] < WHITE_V]
-    half = (len(mids) + 1) // 2
+
+    right_tone = _corner_tone(grid, (rows - 1, cols - 1))
+    left_tone = _corner_tone(grid, (rows - 1, 0))
+    mids_right, mids_left = [], []
+    if right_tone is None and left_tone is None:
+        half = (len(mids) + 1) // 2
+        mids_right, mids_left = mids[:half], mids[half:]
+    else:
+        rt = right_tone if right_tone is not None else left_tone
+        lt = left_tone if left_tone is not None else right_tone
+        for g in mids:
+            dr, dl = abs(g[3] - rt), abs(g[3] - lt)
+            # tolerância p/ empate exato que o float quebraria por ruído
+            if dr < dl - 1e-9 or (abs(dr - dl) <= 1e-9 and rt <= lt):
+                mids_right.append(g)
+            else:
+                mids_left.append(g)
+
     segs = [
-        (whites, (0, 0)),                    # canto sup-esquerdo
-        (blacks, (0, cols - 1)),             # canto sup-direito
-        (mids[:half], (rows - 1, cols - 1)),  # cinzas escuros: inf-direito
-        (mids[half:], (rows - 1, 0)),         # cinzas claros: inf-esquerdo
+        (whites, (0, 0)),                       # canto sup-esquerdo
+        (blacks, (0, cols - 1)),                # canto sup-direito
+        (mids_right, (rows - 1, cols - 1)),     # inf-direito
+        (mids_left, (rows - 1, 0)),             # inf-esquerdo
     ]
+    ordered = []
+    for cars, anchor in segs:
+        # tom mais parecido com o canto fica na célula mais perto da
+        # quina; diverge gradualmente crescendo na diagonal
+        tone = _corner_tone(grid, anchor)
+        if tone is not None:
+            cars = sorted(cars, key=lambda g: abs(g[3] - tone))
+        ordered.append((cars, anchor))
+    return ordered
+
+
+def _reserved_corner_cells(grid: list, segs: list, slot_cells: set) -> set:
+    """Células livres mais próximas de cada quina, reservadas aos seus cinzas.
+
+    Coloridos não podem ocupá-las — garante que nas quinas nenhum colorido
+    fique mais perto da ponta que um cinza daquele grupo."""
+    reserved = set()
+    if not segs:
+        return reserved
+    rows, cols = len(grid), len(grid[0])
+    for cars, anchor in segs:
+        need = len(cars)
+        for r, c in _corner_cells(rows, cols, anchor):
+            if need == 0:
+                break
+            if (r, c) in slot_cells and grid[r][c] is None:
+                reserved.add((r, c))
+                need -= 1
+    return reserved
+
+
+def _place_overflow_grays(grid: list, segs: list) -> None:
+    """Posiciona os grupos de cinzas nas suas quinas, célula mais próxima
+    da ponta primeiro (cresce na diagonal para o centro)."""
+    rows, cols = len(grid), len(grid[0])
     for cars, anchor in segs:
         i = 0
         for r, c in _corner_cells(rows, cols, anchor):
@@ -320,12 +416,21 @@ def _place_overflow_grays(grid: list, grays: list) -> None:
                 i += 1
 
 
-def _place_chroma(grid: list, chroma: list, total_rows: int, total_cols: int, outer_set: set[tuple[int, int]], cfg: GradientConfig) -> None:
-    """Posiciona coloridos no miolo (e perímetro, conforme estratégia)."""
+def _place_chroma(grid: list, chroma: list, total_rows: int, total_cols: int,
+                  outer_set: set[tuple[int, int]], cfg: GradientConfig,
+                  reserved: set | None = None, slot_cells: set | None = None) -> None:
+    """Posiciona coloridos no miolo (e perímetro, conforme estratégia).
+
+    Evita células reservadas às quinas (reserved) e, quando slot_cells é
+    informado, células sem slot real (evita remapeamento na conversão)."""
     if not chroma:
         return
     allowed = {(r, c) for r in range(total_rows) for c in range(total_cols)
                if grid[r][c] is None}
+    if slot_cells is not None:
+        allowed &= slot_cells
+    if reserved:
+        allowed -= reserved
     if cfg.partial_strategy == "vazio":
         allowed = {cell for cell in allowed if cell not in outer_set}
 
@@ -410,9 +515,14 @@ def _ring_fill(cars: list[Car], shelves: list[ShelfConfig],
         outer_ring = [c for c in _ordered_cells(total_rows, total_cols) if c in slot_map]
     outer_set = set(outer_ring)
 
-    _place_grays(grid, grays, outer_ring, cfg.partial_strategy)
-    _place_overflow_grays(grid, grays[len(outer_ring):])
-    _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg)
+    ring_grays, corner_grays = _split_overflow(grays, len(outer_ring))
+    _place_grays(grid, ring_grays, outer_ring, cfg.partial_strategy)
+    slot_cells = set(slot_map)
+    segs = _corner_segments(grid, corner_grays)
+    reserved = _reserved_corner_cells(grid, segs, slot_cells)
+    _place_chroma(grid, chroma, total_rows, total_cols, outer_set, cfg,
+                  reserved=reserved, slot_cells=slot_cells)
+    _place_overflow_grays(grid, segs)
 
     return _grid_to_assignment(grid, cars, slot_map, total_rows, total_cols)
 

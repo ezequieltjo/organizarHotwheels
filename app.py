@@ -105,6 +105,26 @@ def _remove_photo(path: str | None) -> None:
         pass
 
 
+def _filter_cars(cars: list, busca: str, marca: str, serie: str) -> list:
+    """Aplica busca textual + filtros de marca e série."""
+    if busca.strip():
+        b = busca.lower()
+        cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower()
+                or b in c.fabricante.lower() or b in c.serie_tipo.lower()]
+    if marca != "Todas":
+        cars = [c for c in cars if c.marca == marca]
+    if serie != "Todas":
+        cars = [c for c in cars if c.serie_tipo == serie]
+    return cars
+
+
+def _reset_filtros() -> None:
+    """Callback do botão ↺: limpa busca e filtros (roda antes do script)."""
+    st.session_state.busca_cars = ""
+    st.session_state.filtro_marca = "Todas"
+    st.session_state.filtro_serie = "Todas"
+
+
 # --- Main tabs ---
 tab1, tab4, tab2, tab3 = st.tabs(["Coleção", "Estatísticas", "Expositores", "Organizar"])
 
@@ -310,11 +330,26 @@ with tab1:
             render_color_sliders("cor_picker_add")
 
     with c1:
-        busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key="busca_cars")
+        n_exibidos = len(_filter_cars(st.session_state.cars,
+                                      st.session_state.get("busca_cars", ""),
+                                      st.session_state.get("filtro_marca", "Todas"),
+                                      st.session_state.get("filtro_serie", "Todas")))
+        sb_col, cnt_col = st.columns([4, 1])
+        with sb_col:
+            busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key="busca_cars")
+        with cnt_col:
+            cc1, cc2 = st.columns([1, 1.1], gap="small")
+            with cc1:
+                st.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+                st.button("↺", help="Limpar busca e filtros", key="reset_filtros",
+                          on_click=_reset_filtros)
+            with cc2:
+                st.markdown(
+                    f"<div style='margin-top:2.3rem;margin-left:-0.6rem;font-size:0.9rem'>"
+                    f"<b>{n_exibidos}</b> exibidos</div>",
+                    unsafe_allow_html=True)
+
         cars = st.session_state.cars
-        if busca.strip():
-            b = busca.lower()
-            cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower() or b in c.fabricante.lower() or b in c.serie_tipo.lower()]
 
         ordem_opts = [
             "Adição (recentes primeiro)", "Adição (antigos primeiro)",
@@ -329,10 +364,7 @@ with tab1:
             filtro_marca = st.selectbox("Filtrar marca", ["Todas"] + list(dict.fromkeys(c.marca for c in st.session_state.cars if c.marca)), key="filtro_marca")
         with fc3:
             filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)), key="filtro_serie")
-        if filtro_marca != "Todas":
-            cars = [c for c in cars if c.marca == filtro_marca]
-        if filtro_serie != "Todas":
-            cars = [c for c in cars if c.serie_tipo == filtro_serie]
+        cars = _filter_cars(cars, busca, filtro_marca, filtro_serie)
         match ordem:
             case "Alfabética (A-Z)":
                 cars = sorted(cars, key=lambda c: c.modelo.lower())
@@ -490,7 +522,7 @@ with tab2:
                 assignment = {c.id: (c.expositor_id, c.posicao_linha, c.posicao_coluna)
                               for c in positioned}
                 fig = render_grid(assignment, cars, shelves, wall, st.session_state.disabled)
-                st.plotly_chart(fig, width="stretch", key="grid_expositores")
+                st.plotly_chart(fig, width=int(fig.layout.width), key="grid_expositores")
             else:
                 st.info("Nenhum carro posicionado ainda. Use a aba Organizar.")
 
@@ -500,58 +532,98 @@ with tab3:
     shelves = st.session_state.shelves
     wall = st.session_state.wall
 
-    if not shelves:
-        st.warning("Adicione pelo menos um expositor na aba Expositores.")
-    elif not cars:
-        st.warning("Adicione carros à coleção primeiro.")
-    else:
-        disabled = st.session_state.disabled
-        active_cars = [c for c in cars if not c.reserva]
-        slots = total_slots(shelves, disabled)
-        if len(active_cars) > slots:
-            n_reservas = len(cars) - len(active_cars)
-            reserva_note = f" ({n_reservas} reservas)" if n_reservas > 0 else ""
-            st.warning(f"{len(active_cars)} carros ativos mas apenas {slots} vagas{reserva_note}. "
-                       f"Alguns não serão posicionados.")
+    # Resultado: organização gerada ou posições salvas (fallback)
+    assignment = st.session_state.get("assignment")
+    if not assignment:
+        positioned = [c for c in cars if c.expositor_id is not None]
+        if positioned:
+            assignment = {c.id: (c.expositor_id, c.posicao_linha, c.posicao_coluna)
+                          for c in positioned}
 
-        modo = st.selectbox("Modo de organização", list(ORGANIZERS.keys()))
+    org_l, org_r, org_p = st.columns([1, 2, 1.5], gap="large")
 
-        # Controles exclusivos do modo Degradê (moldura)
-        deg_cfg = None
-        if modo.startswith("Degradê"):
-            dsat = st.slider("Saturação máx p/ cinza (%)", 0, 50, 12, key="deg_sat")
-            partial_opts = {"Colorido preenche": "colorido",
-                            "Vagas vazias": "vazio",
-                            "Estica gradiente": "estica"}
-            interior_opts = {"Hue+value": "hue_value",
-                             "Similaridade": "similaridade"}
-            dpartial = st.selectbox("Anel parcial", list(partial_opts), key="deg_partial")
-            dinterior = st.selectbox("Miolo colorido", list(interior_opts), key="deg_interior")
-            deg_cfg = GradientConfig(
-                sat_threshold_pct=float(dsat),
-                partial_strategy=partial_opts[dpartial],
-                interior_strategy=interior_opts[dinterior],
-            )
-
-        if st.button("Gerar organização"):
-            func = ORGANIZERS[modo]
-            if deg_cfg is not None and func is organize_gradient:
-                assignment = func(cars, shelves, wall, disabled, config=deg_cfg)
-            else:
-                assignment = func(cars, shelves, wall, disabled)
-            st.session_state.assignment = assignment
+    with org_l:
+        # --- Importar CSV/Excel (topo da coluna de configuração) ---
+        st.subheader("Importar CSV/Excel")
+        uploaded = st.file_uploader("Arquivo", type=["csv", "xlsx", "xls"], key="import_file")
+        if uploaded and st.button("Importar"):
+            tmp = PHOTOS_DIR / uploaded.name
+            tmp.write_bytes(uploaded.getbuffer())
+            cars_imported = import_file(tmp)
+            for car in cars_imported:
+                insert_car(car)
+            tmp.unlink()
+            refresh()
+            st.success(f"{len(cars_imported)} carros importados!")
             st.rerun()
 
-        # Auto re-rodar ao mexer nos controles do Degradê
-        if deg_cfg is not None and st.session_state.get("assignment"):
-            st.session_state.assignment = organize_gradient(
-                cars, shelves, wall, disabled, config=deg_cfg)
+        # --- Configuração do modo ---
+        if not shelves:
+            st.warning("Adicione pelo menos um expositor na aba Expositores.")
+        elif not cars:
+            st.warning("Adicione carros à coleção primeiro.")
+        else:
+            disabled = st.session_state.disabled
+            active_cars = [c for c in cars if not c.reserva]
+            slots = total_slots(shelves, disabled)
+            if len(active_cars) > slots:
+                n_reservas = len(cars) - len(active_cars)
+                reserva_note = f" ({n_reservas} reservas)" if n_reservas > 0 else ""
+                st.warning(f"{len(active_cars)} carros ativos mas apenas {slots} vagas{reserva_note}. "
+                           f"Alguns não serão posicionados.")
 
-        if "assignment" in st.session_state and st.session_state.assignment:
-            assignment = st.session_state.assignment
+            modo = st.selectbox("Modo de organização", list(ORGANIZERS.keys()))
+
+            # Controles exclusivos do modo Degradê (moldura)
+            deg_cfg = None
+            if modo.startswith("Degradê"):
+                dsat = st.slider("Saturação máx p/ cinza (%)", 0, 50, 12, key="deg_sat")
+                partial_opts = {"Colorido preenche": "colorido",
+                                "Vagas vazias": "vazio",
+                                "Estica gradiente": "estica"}
+                interior_opts = {"Hue+value": "hue_value",
+                                 "Similaridade": "similaridade"}
+                dpartial = st.selectbox("Anel parcial", list(partial_opts), key="deg_partial")
+                dinterior = st.selectbox("Miolo colorido", list(interior_opts), key="deg_interior")
+                deg_cfg = GradientConfig(
+                    sat_threshold_pct=float(dsat),
+                    partial_strategy=partial_opts[dpartial],
+                    interior_strategy=interior_opts[dinterior],
+                )
+
+            if st.button("Gerar organização"):
+                func = ORGANIZERS[modo]
+                if deg_cfg is not None and func is organize_gradient:
+                    assignment = func(cars, shelves, wall, disabled, config=deg_cfg)
+                else:
+                    assignment = func(cars, shelves, wall, disabled)
+                st.session_state.assignment = assignment
+                st.rerun()
+
+            # Auto re-rodar ao mexer nos controles do Degradê
+            if deg_cfg is not None and st.session_state.get("assignment"):
+                st.session_state.assignment = organize_gradient(
+                    cars, shelves, wall, disabled, config=deg_cfg)
+
+    with org_r:
+        # --- Expositor com o resultado ---
+        if shelves and cars and assignment:
+            disabled = st.session_state.disabled
             fig = render_grid(assignment, cars, shelves, wall, disabled)
-            st.plotly_chart(fig, width="stretch", key="grid_organizar")
+            # grid centralizado; quando mais largo que a coluna, rola horizontal
+            st.markdown(
+                "<style>"
+                "div[data-testid='stElementContainer']:has([data-testid=stPlotlyChart])"
+                "{display:flex !important;overflow-x:auto !important;}"
+                "div[data-testid='stPlotlyChart']"
+                "{width:fit-content !important;margin:0 auto !important;flex:none !important;}"
+                "</style>",
+                unsafe_allow_html=True)
+            st.plotly_chart(fig, width=int(fig.layout.width), key="grid_organizar")
 
+    with org_p:
+        # --- Posições (terceira coluna) ---
+        if shelves and cars and assignment:
             st.subheader("Posições")
             car_map = {c.id: c for c in cars}
             pos_data = []
@@ -581,20 +653,6 @@ with tab3:
                 df = pd.DataFrame(pos_data)
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button("Baixar", csv, "organizacao.csv", "text/csv")
-
-    st.divider()
-    st.subheader("Importar CSV/Excel")
-    uploaded = st.file_uploader("Arquivo", type=["csv", "xlsx", "xls"], key="import_file")
-    if uploaded and st.button("Importar"):
-        tmp = PHOTOS_DIR / uploaded.name
-        tmp.write_bytes(uploaded.getbuffer())
-        cars_imported = import_file(tmp)
-        for car in cars_imported:
-            insert_car(car)
-        tmp.unlink()
-        refresh()
-        st.success(f"{len(cars_imported)} carros importados!")
-        st.rerun()
 
 with tab4:
     st.header("Estatísticas")

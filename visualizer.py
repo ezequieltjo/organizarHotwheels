@@ -128,6 +128,7 @@ def _render_stacked_grid(assignment: dict, cars: list[Car], shelves: list[ShelfC
         xaxis=dict(range=[-1, total_w + 0.5]),
         margin=dict(l=10, r=10, t=30, b=10),
         height=max(200, total_rows * 25),
+        width=max(200, int(total_w * 55)),
     )
 
     return fig
@@ -271,6 +272,7 @@ def _render_wall_grid(assignment: dict, cars: list[Car], shelves: list[ShelfConf
         xaxis=dict(range=[-1, total_w + 0.5]),
         margin=dict(l=10, r=10, t=30, b=10),
         height=max(200, total_rows * 25),
+        width=max(200, int(total_w * 55)),
     )
 
     return fig

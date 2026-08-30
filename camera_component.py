@@ -28,11 +28,8 @@ def extract_colors(photo_bytes: bytes, n: int = 8) -> list[str]:
 
 
 def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "color_picker", cor_key: str = None) -> str | None:
-    """Show extracted colors from photo as clickable swatches."""
+    """Show extracted colors from photo as clickable swatches (2 linhas x 4)."""
     state_key = f"_cpicker_{key}"
-
-    # Show photo as visual reference
-    st.image(photo_bytes, width=300)
 
     colors = extract_colors(photo_bytes)
     if not colors:
@@ -40,19 +37,19 @@ def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "
 
     # Show color swatches
     st.markdown("**Toque na cor que mais se aproxima:**")
-    cols = st.columns(min(len(colors), 8))
-
-    for i, hex_c in enumerate(colors[:8]):
-        with cols[i]:
-            st.markdown(
-                f'<div style="width:100%;height:40px;background:{hex_c};'
-                f'border-radius:6px;border:2px solid #666"></div>',
-                unsafe_allow_html=True,
-            )
-            if st.button("Usar", key=f"_cpick_{key}_{i}", width="stretch"):
-                st.session_state[state_key] = hex_c
-                if cor_key:
-                    st.session_state[cor_key] = hex_c
-                st.rerun()
+    for row in range(2):
+        cols = st.columns(4)
+        for i, hex_c in enumerate(colors[row * 4:(row + 1) * 4]):
+            with cols[i]:
+                st.markdown(
+                    f'<div style="width:100%;height:40px;background:{hex_c};'
+                    f'border-radius:6px;border:2px solid #666"></div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button("Usar", key=f"_cpick_{key}_{row * 4 + i}", width="stretch"):
+                    st.session_state[state_key] = hex_c
+                    if cor_key:
+                        st.session_state[cor_key] = hex_c
+                    st.rerun()
 
     return st.session_state.get(state_key)

@@ -13,8 +13,8 @@ from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
                         organize_favorites_first, total_slots)
 from visualizer import render_grid
-from color_utils import nome_para_hex
 from camera_component import render_color_picker
+from thumbs import ensure_thumb
 from color_sliders import render_color_sliders
 import time
 import base64
@@ -23,6 +23,7 @@ from PIL import Image
 
 PHOTOS_DIR = Path(__file__).parent / "photos"
 PHOTOS_DIR.mkdir(exist_ok=True)
+THUMBS_DIR = PHOTOS_DIR / "thumbs"
 
 ORGANIZERS = {
     "Arco-íris (por cor)": organize_rainbow,
@@ -78,6 +79,14 @@ def _img_b64(path) -> str:
     return base64.b64encode(resolved.read_bytes()).decode()
 
 
+def _img_thumb_b64(path) -> str:
+    """Base64 do thumbnail (gera sob demanda). Cards usam isto, não a foto original."""
+    resolved = _resolve_photo(str(path))
+    if resolved is None:
+        raise FileNotFoundError(path)
+    return base64.b64encode(ensure_thumb(resolved, THUMBS_DIR).read_bytes()).decode()
+
+
 def _save_photo(photo_bytes: bytes, modelo: str, old_path: str | None = None) -> str:
     """Save photo to disk, return relative path. Remove previous photo when replacing."""
     if photo_bytes[:4] == b"RIFF" and photo_bytes[8:12] == b"WEBP":
@@ -101,6 +110,9 @@ def _remove_photo(path: str | None) -> None:
     try:
         if resolved.is_relative_to(PHOTOS_DIR.resolve()) and resolved.is_file():
             resolved.unlink()
+            thumb = THUMBS_DIR / resolved.name
+            if thumb.is_file():
+                thumb.unlink()
     except OSError:
         pass
 
@@ -118,19 +130,202 @@ def _filter_cars(cars: list, busca: str, marca: str, serie: str) -> list:
     return cars
 
 
-def _reset_filtros() -> None:
+def _reset_filtros(prefix: str) -> None:
     """Callback do botão ↺: limpa busca e filtros (roda antes do script)."""
-    st.session_state.busca_cars = ""
-    st.session_state.filtro_marca = "Todas"
-    st.session_state.filtro_serie = "Todas"
+    st.session_state[f"busca_{prefix}"] = ""
+    st.session_state[f"filtro_marca_{prefix}"] = "Todas"
+    st.session_state[f"filtro_serie_{prefix}"] = "Todas"
 
+
+ORDEM_OPTS = [
+    "Adição (recentes primeiro)", "Adição (antigos primeiro)",
+    "Alfabética (A-Z)", "Alfabética (Z-A)",
+    "Ano (crescente)", "Ano (decrescente)",
+    "Modificação (recentes primeiro)", "Modificação (antigos primeiro)",
+]
+
+
+def _ordenar(cars: list, ordem: str) -> list:
+    match ordem:
+        case "Alfabética (A-Z)":
+            return sorted(cars, key=lambda c: c.modelo.lower())
+        case "Alfabética (Z-A)":
+            return sorted(cars, key=lambda c: c.modelo.lower(), reverse=True)
+        case "Ano (crescente)":
+            return sorted(cars, key=lambda c: c.ano)
+        case "Ano (decrescente)":
+            return sorted(cars, key=lambda c: c.ano, reverse=True)
+        case "Adição (recentes primeiro)":
+            return sorted(cars, key=lambda c: c.created_at or "", reverse=True)
+        case "Adição (antigos primeiro)":
+            return sorted(cars, key=lambda c: c.created_at or "")
+        case "Modificação (recentes primeiro)":
+            return sorted(cars, key=lambda c: c.updated_at or "", reverse=True)
+        case "Modificação (antigos primeiro)":
+            return sorted(cars, key=lambda c: c.updated_at or "")
+    return cars
+
+
+# --- Ações dos botões dos cards (fn(car)) ---
+
+def _act_favorito(car) -> None:
+    car.favorito = not car.favorito
+    update_car(car)
+    refresh()
+    st.rerun()
+
+
+def _act_reserva(car) -> None:
+    set_reserva(car.id, not car.reserva)
+    refresh()
+    st.rerun()
+
+
+def _act_editar(car) -> None:
+    st.session_state.editing_car_id = car.id
+    st.session_state.pop("_pending_photo", None)
+    st.session_state.pop("_pending_picker_color", None)
+    st.session_state.pop("_cpicker_picker_edit", None)
+    st.rerun()
+
+
+def _act_excluir(car) -> None:
+    st.session_state.pop("_pending_photo", None)
+    st.session_state.pop("_pending_picker_color", None)
+    delete_car(car.id)
+    refresh()
+    st.session_state._car_toast_msg = "Carro removido!"
+    st.session_state.car_toast = "delete"
+    st.rerun()
+
+
+def _act_promover(car) -> None:
+    """Lista de desejos -> coleção."""
+    car.lista_desejos = False
+    update_car(car)
+    refresh()
+    st.session_state._car_toast_msg = "Adicionado à coleção!"
+    st.session_state.car_toast = True
+    st.rerun()
+
+
+COLECAO_ACTIONS = [
+    ("⭐", None, _act_favorito),
+    (lambda c: "📦" if c.reserva else "📭",
+     "Marcar/desmarcar reserva (não posicionar)", _act_reserva),
+    ("✏️", None, _act_editar),
+    ("🗑️", None, _act_excluir),
+]
+
+@st.fragment
+def _wish_grid(source: list) -> None:
+    """Matrix 5 colunas: foto, nome+marca, botões ➕/🗑️."""
+    cars = _list_toolbar(source, "wish")
+    for i in range(0, len(cars), 5):
+        cols = st.columns(5)
+        for col, car in zip(cols, cars[i:i + 5]):
+            with col:
+                if _resolve_photo(car.foto_path) is not None:
+                    st.markdown(
+                        f"<div style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden'>"
+                        f"<img src='data:image/jpeg;base64,{_img_thumb_b64(car.foto_path)}' "
+                        f"style='width:100%;aspect-ratio:4/3;object-fit:cover;display:block'></div>",
+                        unsafe_allow_html=True)
+                else:
+                    st.markdown(
+                        f"<div style='width:100%;aspect-ratio:4/3;background:{car.cor_hex};"
+                        f"border-radius:4px'></div>",
+                        unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b></div>",
+                    unsafe_allow_html=True)
+                b1, b2 = st.columns(2)
+                if b1.button("➕", key=f"wish_add_{car.id}", help="Adicionar à coleção"):
+                    _act_promover(car)
+                if b2.button("🗑️", key=f"wish_del_{car.id}", help="Remover da lista de desejos"):
+                    _act_excluir(car)
+
+
+def _list_toolbar(source: list, prefix: str) -> list:
+    """Busca + filtros + ordenação. Retorna cars filtrados e ordenados."""
+    n_exibidos = len(_filter_cars(source,
+                                  st.session_state.get(f"busca_{prefix}", ""),
+                                  st.session_state.get(f"filtro_marca_{prefix}", "Todas"),
+                                  st.session_state.get(f"filtro_serie_{prefix}", "Todas")))
+    sb_col, cnt_col = st.columns([4, 1])
+    with sb_col:
+        busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key=f"busca_{prefix}")
+    with cnt_col:
+        cc1, cc2 = st.columns([1, 1.1], gap="small")
+        with cc1:
+            st.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+            st.button("↺", help="Limpar busca e filtros", key=f"reset_filtros_{prefix}",
+                      on_click=_reset_filtros, args=(prefix,))
+        with cc2:
+            st.markdown(
+                f"<div style='margin-top:2.3rem;margin-left:-0.6rem;font-size:0.9rem'>"
+                f"<b>{n_exibidos}</b> exibidos</div>",
+                unsafe_allow_html=True)
+
+    fc1, fc2, fc3 = st.columns(3)
+    with fc1:
+        ordem = st.selectbox("Ordenar por", ORDEM_OPTS, key=f"ordem_{prefix}")
+    with fc2:
+        filtro_marca = st.selectbox("Filtrar marca", ["Todas"] + sorted(set(c.marca for c in source if c.marca)), key=f"filtro_marca_{prefix}")
+    with fc3:
+        filtro_serie = st.selectbox("Filtrar série", ["Todas"] + sorted(set(c.serie_tipo for c in source if c.serie_tipo)), key=f"filtro_serie_{prefix}")
+    cars = _ordenar(_filter_cars(source, busca, filtro_marca, filtro_serie), ordem)
+    return cars
+
+
+@st.fragment
+def _render_car_list(source: list, prefix: str, actions: list) -> None:
+    """Cards em linhas. actions: (emoji|fn(car), help, fn(car))."""
+    for car in _list_toolbar(source, prefix):
+        with st.container():
+            col1, col2, col3 = st.columns([1, 6, 2])
+            with col1:
+                if _resolve_photo(car.foto_path) is not None:
+                    st.markdown(
+                        f"<div style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:60px;height:45px'>"
+                        f"<img src='data:image/jpeg;base64,{_img_thumb_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",
+                        unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='width:60px;height:45px;background:{car.cor_hex};border-radius:4px'></div>",
+                                unsafe_allow_html=True)
+            with col2:
+                fav = "★ " if car.favorito else ""
+                reserva_marker = "📦 " if car.reserva else ""
+                customizada_marker = "🖌️ " if car.customizada else ""
+                st.write(f"**{reserva_marker}{customizada_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
+            with col3:
+                btns = st.columns(len(actions))
+                for i, (btn_col, (emoji, help_text, fn)) in enumerate(zip(btns, actions)):
+                    label = emoji(car) if callable(emoji) else emoji
+                    if btn_col.button(label, key=f"act_{prefix}_{i}_{car.id}", help=help_text):
+                        fn(car)
+
+
+# --- Logo centralizada no topo ---
+# Altura da faixa do topo ocupada pela logo. Ajuste este único valor.
+LOGO_HEADER_HEIGHT = "9rem"
+_logo_path = PHOTOS_DIR / "logo.png"
+if _logo_path.is_file():
+    _logo_b64 = base64.b64encode(_logo_path.read_bytes()).decode()
+    st.markdown(
+        f"<div style='text-align:center'>"
+        f"<img src='data:image/png;base64,{_logo_b64}' "
+        f"style='height:{LOGO_HEADER_HEIGHT};width:auto'></div>",
+        unsafe_allow_html=True)
 
 # --- Main tabs ---
-tab1, tab4, tab2, tab3 = st.tabs(["Coleção", "Estatísticas", "Expositores", "Organizar"])
+tab1, tab_wish, tab4, tab2, tab3 = st.tabs(
+    ["Coleção", "Lista de Desejos", "Estatísticas", "Expositores", "Organizar"])
 
 with tab1:
-    n_reservas = sum(1 for c in st.session_state.cars if c.reserva)
-    st.header(f"Coleção: {len(st.session_state.cars)} carrinhos"
+    colecao = [c for c in st.session_state.cars if not c.lista_desejos]
+    n_reservas = sum(1 for c in colecao if c.reserva)
+    st.header(f"Coleção: {len(colecao)} carrinhos"
               + (f" ({n_reservas} reservas)" if n_reservas else ""))
 
     editing_id = st.session_state.get("editing_car_id")
@@ -157,34 +352,29 @@ with tab1:
                 or "#808080"
             )
 
-            # --- Photo capture (outside form) ---
+            # --- Foto: upload + swatches à esquerda, preview à direita ---
             st.markdown("**Foto do carro**")
-            if _resolve_photo(editing_car.foto_path) is not None:
-                st.markdown(
-                    f"<div style='border:4px solid {live_color};border-radius:8px;overflow:hidden;display:inline-block'>"
-                    f"<img src='data:image/jpeg;base64,{_img_b64(editing_car.foto_path)}' style='width:200px;height:auto;display:block'></div>",
-                    unsafe_allow_html=True)
             pc1, pc2 = st.columns(2)
             with pc1:
-                camera_photo = st.camera_input("📷 Tirar Foto", key="cam_edit")
-            with pc2:
                 file_photo = st.file_uploader("📁 Upload (substituir)", type=["jpg", "jpeg", "png", "webp"], key="upload_edit")
-
-            source = camera_photo or file_photo
-            if source:
-                st.session_state._pending_photo = source.getvalue()
-            elif (_existing := _resolve_photo(editing_car.foto_path)) is not None:
-                st.session_state.setdefault("_pending_photo", _existing.read_bytes())
-
-            # --- Color picker ---
-            if st.session_state.get("_pending_photo"):
-                st.markdown("**Clique na foto para selecionar a cor**")
-                render_color_picker(
-                    st.session_state._pending_photo,
-                    bridge_key="__bridge_edit__",
-                    key="picker_edit",
-                    cor_key=_cor_key,
-                )
+                if file_photo:
+                    st.session_state._pending_photo = file_photo.getvalue()
+                elif (_existing := _resolve_photo(editing_car.foto_path)) is not None:
+                    st.session_state.setdefault("_pending_photo", _existing.read_bytes())
+                if st.session_state.get("_pending_photo"):
+                    render_color_picker(
+                        st.session_state._pending_photo,
+                        bridge_key="__bridge_edit__",
+                        key="picker_edit",
+                        cor_key=_cor_key,
+                    )
+            with pc2:
+                if st.session_state.get("_pending_photo"):
+                    _b64 = base64.b64encode(st.session_state._pending_photo).decode()
+                    st.markdown(
+                        f"<div style='border:4px solid {live_color};border-radius:8px;overflow:hidden'>"
+                        f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
+                        unsafe_allow_html=True)
 
             # --- Form ---
             with st.form("edit_car"):
@@ -202,9 +392,6 @@ with tab1:
                 serie_sel = st.selectbox("Série", serie_opts, index=serie_idx, key="edit_serie_sel")
                 serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_edit")
                 ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
-                cor = st.text_input("Cor (nome ou #hex)", value=editing_car.cor, placeholder="deixe vazio para usar o seletor")
-                default_color = st.session_state.get(_cor_key) or editing_car.cor_hex or "#808080"
-                cor_picker = st.color_picker("Seletor de cor", value=default_color, key=_cor_key)
                 reserva_edit = st.checkbox("Reserva (não posicionar em expositor)", value=editing_car.reserva)
                 customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
                 bc1, bc2 = st.columns(2)
@@ -221,11 +408,8 @@ with tab1:
                     fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
                     serie = serie_nova.strip() if serie_sel == "+ Nova série" and serie_nova.strip() else (serie_sel if serie_sel != "+ Nova série" else "")
                     if modelo.strip():
-                        if cor.strip():
-                            cor_hex = nome_para_hex(cor.strip())
-                        else:
-                            cor_hex = cor_picker.upper()
-                            cor = ""
+                        cor_hex = (st.session_state.get(_cor_key) or editing_car.cor_hex or "#808080").upper()
+                        cor = ""
                         foto_path = editing_car.foto_path
                         if st.session_state.get("_pending_photo"):
                             foto_path = _save_photo(
@@ -263,51 +447,50 @@ with tab1:
             existing_fabricantes = sorted(set(c.fabricante for c in st.session_state.cars if c.fabricante))
             existing_series = sorted(set(c.serie_tipo for c in st.session_state.cars if c.serie_tipo))
 
-            # --- Photo capture (outside form) ---
+            # --- Foto: upload + swatches à esquerda, preview à direita ---
             st.markdown("**Foto do carro**")
             pc1, pc2 = st.columns(2)
             with pc1:
-                camera_photo = st.camera_input("📷 Tirar Foto", key="cam_add")
-            with pc2:
                 file_photo = st.file_uploader("📁 Upload", type=["jpg", "jpeg", "png", "webp"], key="upload_add")
-
-            source = camera_photo or file_photo
-            if source:
-                st.session_state._pending_photo = source.getvalue()
-
-            # --- Color picker ---
-            if st.session_state.get("_pending_photo"):
-                st.markdown("**Clique na foto para selecionar a cor**")
-                render_color_picker(
-                    st.session_state._pending_photo,
-                    bridge_key="__bridge_add__",
-                    key="picker_add",
-                    cor_key="cor_picker_add",
-                )
+                if file_photo:
+                    st.session_state._pending_photo = file_photo.getvalue()
+                if st.session_state.get("_pending_photo"):
+                    render_color_picker(
+                        st.session_state._pending_photo,
+                        bridge_key="__bridge_add__",
+                        key="picker_add",
+                        cor_key="cor_picker_add",
+                    )
+            with pc2:
+                if st.session_state.get("_pending_photo"):
+                    _b64 = base64.b64encode(st.session_state._pending_photo).decode()
+                    _live = st.session_state.get("cor_picker_add") or "#808080"
+                    st.markdown(
+                        f"<div style='border:4px solid {_live};border-radius:8px;overflow:hidden'>"
+                        f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
+                        unsafe_allow_html=True)
             with st.form("add_car"):
-                modelo = st.text_input("Modelo")
-                marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
-                marca_nova = st.text_input("Nova marca (preencher se '+ Nova marca')", key="marca_nova_add")
-                fabricante_sel = st.selectbox("Fabricante da miniatura", existing_fabricantes + ["+ Novo fabricante"])
-                fabricante_novo = st.text_input("Novo fabricante (preencher se '+ Novo fabricante')", key="fabricante_novo_add")
-                serie_sel = st.selectbox("Série", existing_series + ["+ Nova série"])
-                serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_add")
-                ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
-                cor = st.text_input("Cor (nome ou #hex)", placeholder="deixe vazio para usar o seletor")
-                default_color = st.session_state.get("cor_picker_add") or "#808080"
-                cor_picker = st.color_picker("Seletor de cor", value=default_color, key="cor_picker_add")
+                ac_esq, ac_dir = st.columns(2)
+                with ac_esq:
+                    modelo = st.text_input("Modelo")
+                    marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
+                    fabricante_sel = st.selectbox("Fabricante da miniatura", existing_fabricantes + ["+ Novo fabricante"])
+                    serie_sel = st.selectbox("Série", existing_series + ["+ Nova série"])
+                with ac_dir:
+                    ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
+                    marca_nova = st.text_input("Nova marca (preencher se '+ Nova marca')", key="marca_nova_add")
+                    fabricante_novo = st.text_input("Novo fabricante (preencher se '+ Novo fabricante')", key="fabricante_novo_add")
+                    serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_add")
                 reserva_add = st.checkbox("Reserva (não posicionar em expositor)", value=False)
                 customizada_add = st.checkbox("Customização", value=False)
+                desejo_add = st.checkbox("Lista de desejos (não adquirido ainda)", value=False)
                 if st.form_submit_button("Adicionar"):
                     marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
                     fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
                     serie = serie_nova.strip() if serie_sel == "+ Nova série" and serie_nova.strip() else (serie_sel if serie_sel != "+ Nova série" else "")
                     if modelo.strip():
-                        if cor.strip():
-                            cor_hex = nome_para_hex(cor.strip())
-                        else:
-                            cor_hex = cor_picker.upper()
-                            cor = ""
+                        cor_hex = (st.session_state.get("cor_picker_add") or "#808080").upper()
+                        cor = ""
                         foto_path = ""
                         if st.session_state.get("_pending_photo"):
                             foto_path = _save_photo(st.session_state._pending_photo, modelo.strip())
@@ -318,6 +501,7 @@ with tab1:
                             foto_path=foto_path,
                             reserva=reserva_add,
                             customizada=customizada_add,
+                            lista_desejos=desejo_add,
                         ))
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
@@ -330,102 +514,15 @@ with tab1:
             render_color_sliders("cor_picker_add")
 
     with c1:
-        n_exibidos = len(_filter_cars(st.session_state.cars,
-                                      st.session_state.get("busca_cars", ""),
-                                      st.session_state.get("filtro_marca", "Todas"),
-                                      st.session_state.get("filtro_serie", "Todas")))
-        sb_col, cnt_col = st.columns([4, 1])
-        with sb_col:
-            busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key="busca_cars")
-        with cnt_col:
-            cc1, cc2 = st.columns([1, 1.1], gap="small")
-            with cc1:
-                st.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
-                st.button("↺", help="Limpar busca e filtros", key="reset_filtros",
-                          on_click=_reset_filtros)
-            with cc2:
-                st.markdown(
-                    f"<div style='margin-top:2.3rem;margin-left:-0.6rem;font-size:0.9rem'>"
-                    f"<b>{n_exibidos}</b> exibidos</div>",
-                    unsafe_allow_html=True)
+        _render_car_list(colecao, "cars", COLECAO_ACTIONS)
 
-        cars = st.session_state.cars
-
-        ordem_opts = [
-            "Adição (recentes primeiro)", "Adição (antigos primeiro)",
-            "Alfabética (A-Z)", "Alfabética (Z-A)",
-            "Ano (crescente)", "Ano (decrescente)",
-            "Modificação (recentes primeiro)", "Modificação (antigos primeiro)",
-        ]
-        fc1, fc2, fc3 = st.columns(3)
-        with fc1:
-            ordem = st.selectbox("Ordenar por", ordem_opts, key="ordem_cars")
-        with fc2:
-            filtro_marca = st.selectbox("Filtrar marca", ["Todas"] + list(dict.fromkeys(c.marca for c in st.session_state.cars if c.marca)), key="filtro_marca")
-        with fc3:
-            filtro_serie = st.selectbox("Filtrar série", ["Todas"] + list(dict.fromkeys(c.serie_tipo for c in st.session_state.cars if c.serie_tipo)), key="filtro_serie")
-        cars = _filter_cars(cars, busca, filtro_marca, filtro_serie)
-        match ordem:
-            case "Alfabética (A-Z)":
-                cars = sorted(cars, key=lambda c: c.modelo.lower())
-            case "Alfabética (Z-A)":
-                cars = sorted(cars, key=lambda c: c.modelo.lower(), reverse=True)
-            case "Ano (crescente)":
-                cars = sorted(cars, key=lambda c: c.ano)
-            case "Ano (decrescente)":
-                cars = sorted(cars, key=lambda c: c.ano, reverse=True)
-            case "Adição (recentes primeiro)":
-                cars = sorted(cars, key=lambda c: c.created_at or "", reverse=True)
-            case "Adição (antigos primeiro)":
-                cars = sorted(cars, key=lambda c: c.created_at or "")
-            case "Modificação (recentes primeiro)":
-                cars = sorted(cars, key=lambda c: c.updated_at or "", reverse=True)
-            case "Modificação (antigos primeiro)":
-                cars = sorted(cars, key=lambda c: c.updated_at or "")
-
-        for car in cars:
-            with st.container():
-                col1, col2, col3 = st.columns([1, 6, 2])
-                with col1:
-                    if _resolve_photo(car.foto_path) is not None:
-                        st.markdown(
-                            f"<div style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:60px;height:45px'>"
-                            f"<img src='data:image/jpeg;base64,{_img_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",
-                            unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<div style='width:60px;height:45px;background:{car.cor_hex};border-radius:4px'></div>",
-                                    unsafe_allow_html=True)
-                with col2:
-                    fav = "★ " if car.favorito else ""
-                    reserva_marker = "📦 " if car.reserva else ""
-                    customizada_marker = "🖌️ " if car.customizada else ""
-                    st.write(f"**{reserva_marker}{customizada_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
-                with col3:
-                    bc1, bc2, bc3, bc4 = st.columns(4)
-                    if bc1.button("⭐", key=f"fav_{car.id}"):
-                        car.favorito = not car.favorito
-                        update_car(car)
-                        refresh()
-                        st.rerun()
-                    if bc2.button("📦" if car.reserva else "📭", key=f"reserva_{car.id}",
-                                  help="Marcar/desmarcar reserva (não posicionar)"):
-                        set_reserva(car.id, not car.reserva)
-                        refresh()
-                        st.rerun()
-                    if bc3.button("✏️", key=f"edit_{car.id}"):
-                        st.session_state.editing_car_id = car.id
-                        st.session_state.pop("_pending_photo", None)
-                        st.session_state.pop("_pending_picker_color", None)
-                        st.session_state.pop("_cpicker_picker_edit", None)
-                        st.rerun()
-                    if bc4.button("🗑️", key=f"del_{car.id}"):
-                        st.session_state.pop("_pending_photo", None)
-                        st.session_state.pop("_pending_picker_color", None)
-                        delete_car(car.id)
-                        refresh()
-                        st.session_state._car_toast_msg = "Carro removido!"
-                        st.session_state.car_toast = "delete"
-                        st.rerun()
+with tab_wish:
+    desejos = [c for c in st.session_state.cars if c.lista_desejos]
+    st.header(f"Lista de Desejos: {len(desejos)} carrinhos")
+    if not desejos:
+        st.info("Nenhum carro na lista de desejos. Marque 'Lista de desejos' ao adicionar um carro.")
+    else:
+        _wish_grid(desejos)
 
 with tab2:
     st.header("Expositores")
@@ -528,7 +625,7 @@ with tab2:
 
 with tab3:
     st.header("Organizar")
-    cars = st.session_state.cars
+    cars = [c for c in st.session_state.cars if not c.lista_desejos]
     shelves = st.session_state.shelves
     wall = st.session_state.wall
 
@@ -656,7 +753,7 @@ with tab3:
 
 with tab4:
     st.header("Estatísticas")
-    cars = st.session_state.cars
+    cars = [c for c in st.session_state.cars if not c.lista_desejos]
     if not cars:
         st.info("Nenhum carro na coleção ainda.")
     else:
@@ -724,6 +821,8 @@ st.html(f"""<script>
   var d=parent.document;
   var s=d.createElement('style');
   s.textContent=`
+    header[data-testid="stHeader"]{{display:none!important;}}
+    div[data-testid="stMainBlockContainer"]{{padding-top:1rem!important;}}
     .car-actions-row{{display:flex!important;gap:6px!important;justify-content:center!important;align-items:center!important;}}
     .car-actions-row > div{{flex:0 0 30px!important;width:30px!important;padding:0!important;margin:0!important;}}
     .car-actions-row button{{display:flex!important;justify-content:center!important;align-items:center!important;font-size:1.1rem!important;padding:0!important;width:30px!important;height:30px!important;min-width:30px!important;max-width:30px!important;border-radius:6px!important;margin:0 auto!important;line-height:1!important;}}
@@ -732,7 +831,7 @@ st.html(f"""<script>
   function markButtons(){{
     d.querySelectorAll('button').forEach(function(b){{
       var t=b.textContent.trim();
-      if((t==='⭐'||t==='📦'||t==='📭'||t==='✏️'||t==='🗑️')&&b.closest('[data-testid="stColumn"]')){{
+      if((t==='⭐'||t==='📦'||t==='📭'||t==='✏️'||t==='🗑️'||t==='➕')&&b.closest('[data-testid="stColumn"]')){{
         var col=b.closest('[data-testid="stColumn"]');
         var row=col.parentElement;
         if(row&&row.getAttribute('data-testid')==='stHorizontalBlock'){{

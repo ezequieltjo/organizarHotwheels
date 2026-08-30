@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS cars (
     favorito INTEGER NOT NULL DEFAULT 0,
     reserva INTEGER NOT NULL DEFAULT 0,
     customizada INTEGER NOT NULL DEFAULT 0,
+    lista_desejos INTEGER NOT NULL DEFAULT 0,
     foto_path TEXT NOT NULL DEFAULT '',
     expositor_id INTEGER,
     posicao_linha INTEGER,
@@ -80,6 +81,8 @@ def init_db():
         conn.execute("ALTER TABLE cars ADD COLUMN reserva INTEGER NOT NULL DEFAULT 0")
     if "customizada" not in cols:
         conn.execute("ALTER TABLE cars ADD COLUMN customizada INTEGER NOT NULL DEFAULT 0")
+    if "lista_desejos" not in cols:
+        conn.execute("ALTER TABLE cars ADD COLUMN lista_desejos INTEGER NOT NULL DEFAULT 0")
     # Migrate: add wall position columns to shelf_configs
     shelf_cols = [r[1] for r in conn.execute("PRAGMA table_info(shelf_configs)").fetchall()]
     if "parede_linha" not in shelf_cols:
@@ -107,11 +110,11 @@ def insert_car(car: Car) -> int:
     conn = get_connection()
     cursor = conn.execute(
         """INSERT INTO cars (modelo, marca, fabricante, ano, cor, cor_hex, serie_tipo,
-           favorito, reserva, customizada, foto_path, expositor_id, posicao_linha, posicao_coluna, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
+           favorito, reserva, customizada, lista_desejos, foto_path, expositor_id, posicao_linha, posicao_coluna, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
         (car.modelo, car.marca, car.fabricante, car.ano, car.cor, car.cor_hex, car.serie_tipo,
-         int(car.favorito), int(car.reserva), int(car.customizada), car.foto_path, car.expositor_id,
-         car.posicao_linha, car.posicao_coluna))
+         int(car.favorito), int(car.reserva), int(car.customizada), int(car.lista_desejos),
+         car.foto_path, car.expositor_id, car.posicao_linha, car.posicao_coluna))
     car_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -136,11 +139,11 @@ def update_car(car: Car) -> None:
     conn = get_connection()
     conn.execute(
         """UPDATE cars SET modelo=?, marca=?, fabricante=?, ano=?, cor=?, cor_hex=?,
-           serie_tipo=?, favorito=?, reserva=?, customizada=?, foto_path=?, expositor_id=?,
+           serie_tipo=?, favorito=?, reserva=?, customizada=?, lista_desejos=?, foto_path=?, expositor_id=?,
            posicao_linha=?, posicao_coluna=?, updated_at=CURRENT_TIMESTAMP WHERE id=?""",
         (car.modelo, car.marca, car.fabricante, car.ano, car.cor, car.cor_hex, car.serie_tipo,
-         int(car.favorito), int(car.reserva), int(car.customizada), car.foto_path, car.expositor_id,
-         car.posicao_linha, car.posicao_coluna, car.id))
+         int(car.favorito), int(car.reserva), int(car.customizada), int(car.lista_desejos),
+         car.foto_path, car.expositor_id, car.posicao_linha, car.posicao_coluna, car.id))
     conn.commit()
     conn.close()
 
@@ -175,6 +178,7 @@ def _row_to_car(row) -> Car:
         serie_tipo=row["serie_tipo"], favorito=bool(row["favorito"]),
         reserva=bool(row["reserva"]),
         customizada=bool(row["customizada"]),
+        lista_desejos=bool(row["lista_desejos"]),
         foto_path=row["foto_path"], expositor_id=row["expositor_id"],
         posicao_linha=row["posicao_linha"], posicao_coluna=row["posicao_coluna"],
         created_at=row["created_at"], updated_at=row["updated_at"])

@@ -42,14 +42,12 @@ def render_color_sliders(cor_key: str) -> None:
     st.session_state[hk], st.session_state[sk], st.session_state[vk] = h0, s0, v0
 
     final_hex = st.session_state.get(cor_key) or DEFAULT_COLOR
-    st.markdown("**Ajuste fino da cor (sliders)**")
-    st.markdown(
-        f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px'>"
-        f"<div style='width:48px;height:48px;background:{final_hex};"
-        f"border-radius:8px;border:2px solid #666'></div>"
-        f"<code style='font-size:18px'>{final_hex}</code></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("**Ajuste fino da cor**")
+    cp_col, hex_col = st.columns([1, 5], gap="small", vertical_alignment="center")
+    with cp_col:
+        st.color_picker("Cor", key=cor_key, label_visibility="collapsed")
+    with hex_col:
+        st.markdown(f"<code style='font-size:18px'>{final_hex}</code>", unsafe_allow_html=True)
 
     col_rgb, col_hsv = st.columns(2)
     with col_rgb:

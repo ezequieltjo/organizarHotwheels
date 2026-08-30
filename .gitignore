@@ -10,3 +10,6 @@ __pycache__/
 # Tool/test artifacts
 .codegraph/
 .coverage
+
+# Thumbnails derivados (cache gerado em runtime)
+photos/thumbs/

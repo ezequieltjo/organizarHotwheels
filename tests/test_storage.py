@@ -39,6 +39,15 @@ def test_update_car():
     assert updated.modelo == "Camaro"
 
 
+def test_lista_desejos_roundtrip():
+    insert_car(Car(modelo="Supra", lista_desejos=True))
+    car = get_car_by_id(1)
+    assert car.lista_desejos is True
+    car.lista_desejos = False
+    update_car(car)
+    assert get_car_by_id(1).lista_desejos is False
+
+
 def test_delete_car():
     insert_car(Car(modelo="Corvette"))
     delete_car(1)

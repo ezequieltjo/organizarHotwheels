@@ -33,6 +33,7 @@ def fake_st(monkeypatch):
         slider=_noop,
         caption=_noop,
         markdown=_noop,
+        color_picker=_noop,
         columns=lambda *_a, **_k: (_DummyCols(), _DummyCols()),
     )
     monkeypatch.setattr(color_sliders, "st", fake)

@@ -25,6 +25,10 @@ PHOTOS_DIR = Path(__file__).parent / "photos"
 PHOTOS_DIR.mkdir(exist_ok=True)
 THUMBS_DIR = PHOTOS_DIR / "thumbs"
 
+# Cores da logo (usadas no tema e nos gráficos)
+LOGO_VERMELHO = "#ea1c2c"
+LOGO_AMARELO = "#f9d908"
+
 ORGANIZERS = {
     "Arco-íris (por cor)": organize_rainbow,
     "Degradê (moldura)": organize_gradient,
@@ -753,13 +757,13 @@ with tab3:
 
 with tab4:
     st.header("Estatísticas")
-    cars = [c for c in st.session_state.cars if not c.lista_desejos]
-    if not cars:
-        st.info("Nenhum carro na coleção ainda.")
-    else:
-        import pandas as pd
-        import plotly.express as px
+    import pandas as pd
+    import plotly.express as px
 
+    def _render_stats(cars: list, cor: str, msg_vazio: str) -> None:
+        if not cars:
+            st.info(msg_vazio)
+            return
         df = pd.DataFrame([{
             "marca": c.marca,
             "fabricante": c.fabricante,
@@ -785,7 +789,8 @@ with tab4:
                 counts = counts.sort_index()
             counts = counts.reset_index()
             counts.columns = [field, "quantidade"]
-            fig = px.bar(counts, x=field, y="quantidade", title=title, text="quantidade")
+            fig = px.bar(counts, x=field, y="quantidade", title=title,
+                         text="quantidade", color_discrete_sequence=[cor])
             fig.update_layout(showlegend=False, xaxis_tickangle=-45, height=380)
             st.plotly_chart(fig, use_container_width=True)
 
@@ -796,6 +801,16 @@ with tab4:
         with col_b:
             _bar("fabricante", "Carros por fabricante")
             _bar("ano", "Carros por ano", sort_index=True)
+
+    st.subheader("Coleção")
+    _render_stats(
+        [c for c in st.session_state.cars if not c.lista_desejos],
+        LOGO_VERMELHO, "Nenhum carro na coleção ainda.")
+
+    st.subheader("Lista de Desejos")
+    _render_stats(
+        [c for c in st.session_state.cars if c.lista_desejos],
+        LOGO_AMARELO, "Nenhum carro na lista de desejos.")
 
 # Single script at end: button styling + toast
 _toast_type = st.session_state.pop("car_toast", None)

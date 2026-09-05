@@ -121,8 +121,12 @@ def _remove_photo(path: str | None) -> None:
         pass
 
 
-def _filter_cars(cars: list, busca: str, marca: str, serie: str) -> list:
-    """Aplica busca textual + filtros de marca e série."""
+STATUS_FILTRO_OPTS = ["Todos", "Reservados", "Não reservados", "Customizados", "Não customizados"]
+
+
+def _filter_cars(cars: list, busca: str, marca: str, serie: str,
+                 status: str = "Todos") -> list:
+    """Aplica busca textual + filtros de marca, série e status (reserva/custom)."""
     if busca.strip():
         b = busca.lower()
         cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower()
@@ -131,6 +135,14 @@ def _filter_cars(cars: list, busca: str, marca: str, serie: str) -> list:
         cars = [c for c in cars if c.marca == marca]
     if serie != "Todas":
         cars = [c for c in cars if c.serie_tipo == serie]
+    if status == "Reservados":
+        cars = [c for c in cars if c.reserva]
+    elif status == "Não reservados":
+        cars = [c for c in cars if not c.reserva]
+    elif status == "Customizados":
+        cars = [c for c in cars if c.customizada]
+    elif status == "Não customizados":
+        cars = [c for c in cars if not c.customizada]
     return cars
 
 
@@ -139,6 +151,7 @@ def _reset_filtros(prefix: str) -> None:
     st.session_state[f"busca_{prefix}"] = ""
     st.session_state[f"filtro_marca_{prefix}"] = "Todas"
     st.session_state[f"filtro_serie_{prefix}"] = "Todas"
+    st.session_state[f"filtro_status_{prefix}"] = "Todos"
 
 
 ORDEM_OPTS = [
@@ -255,7 +268,8 @@ def _list_toolbar(source: list, prefix: str) -> list:
     n_exibidos = len(_filter_cars(source,
                                   st.session_state.get(f"busca_{prefix}", ""),
                                   st.session_state.get(f"filtro_marca_{prefix}", "Todas"),
-                                  st.session_state.get(f"filtro_serie_{prefix}", "Todas")))
+                                  st.session_state.get(f"filtro_serie_{prefix}", "Todas"),
+                                  st.session_state.get(f"filtro_status_{prefix}", "Todos")))
     sb_col, cnt_col = st.columns([4, 1])
     with sb_col:
         busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key=f"busca_{prefix}")
@@ -267,18 +281,20 @@ def _list_toolbar(source: list, prefix: str) -> list:
                       on_click=_reset_filtros, args=(prefix,))
         with cc2:
             st.markdown(
-                f"<div style='margin-top:2.3rem;margin-left:-0.6rem;font-size:0.9rem'>"
+                f"<div style='margin-top:2.05rem;margin-left:-0.6rem;font-size:1.25rem'>"
                 f"<b>{n_exibidos}</b> exibidos</div>",
                 unsafe_allow_html=True)
 
-    fc1, fc2, fc3 = st.columns(3)
+    fc1, fc2, fc3, fc4 = st.columns(4)
     with fc1:
         ordem = st.selectbox("Ordenar por", ORDEM_OPTS, key=f"ordem_{prefix}")
     with fc2:
         filtro_marca = st.selectbox("Filtrar marca", ["Todas"] + sorted(set(c.marca for c in source if c.marca)), key=f"filtro_marca_{prefix}")
     with fc3:
         filtro_serie = st.selectbox("Filtrar série", ["Todas"] + sorted(set(c.serie_tipo for c in source if c.serie_tipo)), key=f"filtro_serie_{prefix}")
-    cars = _ordenar(_filter_cars(source, busca, filtro_marca, filtro_serie), ordem)
+    with fc4:
+        filtro_status = st.selectbox("Status", STATUS_FILTRO_OPTS, key=f"filtro_status_{prefix}")
+    cars = _ordenar(_filter_cars(source, busca, filtro_marca, filtro_serie, filtro_status), ordem)
     return cars
 
 
@@ -341,6 +357,12 @@ with tab1:
             editing_id = None
 
     c1, c2 = st.columns([3, 2])
+    # Lista (c1) ANTES do form (c2): o submit do form aborta a run via st.rerun();
+    # se a toolbar de filtros ainda não registrou os widgets, Streamlit descarta
+    # os valores e os filtros resetam. Renderizando c1 primeiro, os widgets já
+    # existem quando o abort acontece e os filtros persistem.
+    with c1:
+        _render_car_list(colecao, "cars", COLECAO_ACTIONS)
     with c2:
         if editing_car:
             st.subheader(f"Editar: {editing_car.modelo}")
@@ -350,6 +372,10 @@ with tab1:
 
             # --- Live color for border preview ---
             _cor_key = f"_cpe_{editing_car.id}"
+            # Seed ANTES do color_picker: sem isso o widget nasce preto (#000000)
+            # e sobrescreve a cor salva no save.
+            if _cor_key not in st.session_state:
+                st.session_state[_cor_key] = (editing_car.cor_hex or "#808080").upper()
             live_color = (
                 st.session_state.get(_cor_key)
                 or editing_car.cor_hex
@@ -357,28 +383,29 @@ with tab1:
             )
 
             # --- Foto: upload + swatches à esquerda, preview à direita ---
-            st.markdown("**Foto do carro**")
-            pc1, pc2 = st.columns(2)
-            with pc1:
-                file_photo = st.file_uploader("📁 Upload (substituir)", type=["jpg", "jpeg", "png", "webp"], key="upload_edit")
-                if file_photo:
-                    st.session_state._pending_photo = file_photo.getvalue()
-                elif (_existing := _resolve_photo(editing_car.foto_path)) is not None:
-                    st.session_state.setdefault("_pending_photo", _existing.read_bytes())
-                if st.session_state.get("_pending_photo"):
-                    render_color_picker(
-                        st.session_state._pending_photo,
-                        bridge_key="__bridge_edit__",
-                        key="picker_edit",
-                        cor_key=_cor_key,
-                    )
-            with pc2:
-                if st.session_state.get("_pending_photo"):
-                    _b64 = base64.b64encode(st.session_state._pending_photo).decode()
-                    st.markdown(
-                        f"<div style='border:4px solid {live_color};border-radius:8px;overflow:hidden'>"
-                        f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
-                        unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("**Imagem da Miniatura**")
+                pc1, pc2 = st.columns(2)
+                with pc1:
+                    file_photo = st.file_uploader("📁 Upload (substituir)", type=["jpg", "jpeg", "png", "webp"], key="upload_edit")
+                    if file_photo:
+                        st.session_state._pending_photo = file_photo.getvalue()
+                    elif (_existing := _resolve_photo(editing_car.foto_path)) is not None:
+                        st.session_state.setdefault("_pending_photo", _existing.read_bytes())
+                    if st.session_state.get("_pending_photo"):
+                        render_color_picker(
+                            st.session_state._pending_photo,
+                            bridge_key="__bridge_edit__",
+                            key="picker_edit",
+                            cor_key=_cor_key,
+                        )
+                with pc2:
+                    if st.session_state.get("_pending_photo"):
+                        _b64 = base64.b64encode(st.session_state._pending_photo).decode()
+                        st.markdown(
+                            f"<div style='border:4px solid {live_color};border-radius:8px;overflow:hidden'>"
+                            f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
+                            unsafe_allow_html=True)
 
             # --- Form ---
             with st.form("edit_car"):
@@ -452,27 +479,28 @@ with tab1:
             existing_series = sorted(set(c.serie_tipo for c in st.session_state.cars if c.serie_tipo))
 
             # --- Foto: upload + swatches à esquerda, preview à direita ---
-            st.markdown("**Foto do carro**")
-            pc1, pc2 = st.columns(2)
-            with pc1:
-                file_photo = st.file_uploader("📁 Upload", type=["jpg", "jpeg", "png", "webp"], key="upload_add")
-                if file_photo:
-                    st.session_state._pending_photo = file_photo.getvalue()
-                if st.session_state.get("_pending_photo"):
-                    render_color_picker(
-                        st.session_state._pending_photo,
-                        bridge_key="__bridge_add__",
-                        key="picker_add",
-                        cor_key="cor_picker_add",
-                    )
-            with pc2:
-                if st.session_state.get("_pending_photo"):
-                    _b64 = base64.b64encode(st.session_state._pending_photo).decode()
-                    _live = st.session_state.get("cor_picker_add") or "#808080"
-                    st.markdown(
-                        f"<div style='border:4px solid {_live};border-radius:8px;overflow:hidden'>"
-                        f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
-                        unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("**Imagem da Miniatura**")
+                pc1, pc2 = st.columns(2)
+                with pc1:
+                    file_photo = st.file_uploader("📁 Upload", type=["jpg", "jpeg", "png", "webp"], key="upload_add")
+                    if file_photo:
+                        st.session_state._pending_photo = file_photo.getvalue()
+                    if st.session_state.get("_pending_photo"):
+                        render_color_picker(
+                            st.session_state._pending_photo,
+                            bridge_key="__bridge_add__",
+                            key="picker_add",
+                            cor_key="cor_picker_add",
+                        )
+                with pc2:
+                    if st.session_state.get("_pending_photo"):
+                        _b64 = base64.b64encode(st.session_state._pending_photo).decode()
+                        _live = st.session_state.get("cor_picker_add") or "#808080"
+                        st.markdown(
+                            f"<div style='border:4px solid {_live};border-radius:8px;overflow:hidden'>"
+                            f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
+                            unsafe_allow_html=True)
             with st.form("add_car"):
                 ac_esq, ac_dir = st.columns(2)
                 with ac_esq:
@@ -485,10 +513,16 @@ with tab1:
                     marca_nova = st.text_input("Nova marca (preencher se '+ Nova marca')", key="marca_nova_add")
                     fabricante_novo = st.text_input("Novo fabricante (preencher se '+ Novo fabricante')", key="fabricante_novo_add")
                     serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_add")
-                reserva_add = st.checkbox("Reserva (não posicionar em expositor)", value=False)
-                customizada_add = st.checkbox("Customização", value=False)
-                desejo_add = st.checkbox("Lista de desejos (não adquirido ainda)", value=False)
-                if st.form_submit_button("Adicionar"):
+                fl_esq, fl_dir = st.columns(2)
+                with fl_esq:
+                    reserva_add = st.checkbox("Reserva (não posicionar em expositor)", value=False)
+                    desejo_add = st.checkbox("Lista de desejos (não adquirido ainda)", value=False)
+                with fl_dir:
+                    customizada_add = st.checkbox("Customização", value=False)
+                _, add_col, _ = st.columns([2, 1, 2])
+                with add_col:
+                    add = st.form_submit_button("Adicionar", type="primary", use_container_width=True)
+                if add:
                     marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
                     fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
                     serie = serie_nova.strip() if serie_sel == "+ Nova série" and serie_nova.strip() else (serie_sel if serie_sel != "+ Nova série" else "")
@@ -516,9 +550,6 @@ with tab1:
                         st.session_state.car_toast = True
                         st.rerun()
             render_color_sliders("cor_picker_add")
-
-    with c1:
-        _render_car_list(colecao, "cars", COLECAO_ACTIONS)
 
 with tab_wish:
     desejos = [c for c in st.session_state.cars if c.lista_desejos]

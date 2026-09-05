@@ -42,21 +42,22 @@ def render_color_sliders(cor_key: str) -> None:
     st.session_state[hk], st.session_state[sk], st.session_state[vk] = h0, s0, v0
 
     final_hex = st.session_state.get(cor_key) or DEFAULT_COLOR
-    st.markdown("**Ajuste fino da cor**")
-    cp_col, hex_col = st.columns([1, 5], gap="small", vertical_alignment="center")
-    with cp_col:
-        st.color_picker("Cor", key=cor_key, label_visibility="collapsed")
-    with hex_col:
-        st.markdown(f"<code style='font-size:18px'>{final_hex}</code>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("**Ajuste de Cor**")
+        cp_col, hex_col = st.columns([1, 5], gap="small", vertical_alignment="center")
+        with cp_col:
+            st.color_picker("Cor", key=cor_key, label_visibility="collapsed")
+        with hex_col:
+            st.markdown(f"<code style='font-size:18px'>{final_hex}</code>", unsafe_allow_html=True)
 
-    col_rgb, col_hsv = st.columns(2)
-    with col_rgb:
-        st.caption("RGB")
-        st.slider("R", 0, 255, key=rk, on_change=_on_rgb_change, args=(cor_key,))
-        st.slider("G", 0, 255, key=gk, on_change=_on_rgb_change, args=(cor_key,))
-        st.slider("B", 0, 255, key=bk, on_change=_on_rgb_change, args=(cor_key,))
-    with col_hsv:
-        st.caption("HSV")
-        st.slider("H (matiz)", 0, 360, key=hk, on_change=_on_hsv_change, args=(cor_key,))
-        st.slider("S (saturação)", 0, 100, key=sk, on_change=_on_hsv_change, args=(cor_key,))
-        st.slider("V (luminosidade)", 0, 100, key=vk, on_change=_on_hsv_change, args=(cor_key,))
+        col_rgb, col_hsv = st.columns(2)
+        with col_rgb:
+            st.caption("RGB")
+            st.slider("R", 0, 255, key=rk, on_change=_on_rgb_change, args=(cor_key,))
+            st.slider("G", 0, 255, key=gk, on_change=_on_rgb_change, args=(cor_key,))
+            st.slider("B", 0, 255, key=bk, on_change=_on_rgb_change, args=(cor_key,))
+        with col_hsv:
+            st.caption("HSV")
+            st.slider("H (matiz)", 0, 360, key=hk, on_change=_on_hsv_change, args=(cor_key,))
+            st.slider("S (saturação)", 0, 100, key=sk, on_change=_on_hsv_change, args=(cor_key,))
+            st.slider("V (luminosidade)", 0, 100, key=vk, on_change=_on_hsv_change, args=(cor_key,))

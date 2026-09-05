@@ -137,10 +137,15 @@ def get_car_by_id(car_id: int) -> Car | None:
 
 def update_car(car: Car) -> None:
     conn = get_connection()
+    old = conn.execute(
+        "SELECT lista_desejos FROM cars WHERE id = ?", (car.id,)).fetchone()
+    # Saiu da lista de desejos: created_at vira a data de adição à coleção
+    added_now = ("created_at=CURRENT_TIMESTAMP, "
+                 if old and old["lista_desejos"] and not car.lista_desejos else "")
     conn.execute(
-        """UPDATE cars SET modelo=?, marca=?, fabricante=?, ano=?, cor=?, cor_hex=?,
+        f"""UPDATE cars SET modelo=?, marca=?, fabricante=?, ano=?, cor=?, cor_hex=?,
            serie_tipo=?, favorito=?, reserva=?, customizada=?, lista_desejos=?, foto_path=?, expositor_id=?,
-           posicao_linha=?, posicao_coluna=?, updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+           posicao_linha=?, posicao_coluna=?, {added_now}updated_at=CURRENT_TIMESTAMP WHERE id=?""",
         (car.modelo, car.marca, car.fabricante, car.ano, car.cor, car.cor_hex, car.serie_tipo,
          int(car.favorito), int(car.reserva), int(car.customizada), int(car.lista_desejos),
          car.foto_path, car.expositor_id, car.posicao_linha, car.posicao_coluna, car.id))

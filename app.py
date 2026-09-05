@@ -121,12 +121,12 @@ def _remove_photo(path: str | None) -> None:
         pass
 
 
-STATUS_FILTRO_OPTS = ["Todos", "Reservados", "Não reservados", "Customizados", "Não customizados"]
+STATUS_FILTRO_OPTS = ["Todos", "Arquivados", "Não arquivados", "Customizados", "Não customizados"]
 
 
 def _filter_cars(cars: list, busca: str, marca: str, serie: str,
                  status: str = "Todos") -> list:
-    """Aplica busca textual + filtros de marca, série e status (reserva/custom)."""
+    """Aplica busca textual + filtros de marca, série e status (arquivado/custom)."""
     if busca.strip():
         b = busca.lower()
         cars = [c for c in cars if b in c.modelo.lower() or b in c.marca.lower()
@@ -135,9 +135,9 @@ def _filter_cars(cars: list, busca: str, marca: str, serie: str,
         cars = [c for c in cars if c.marca == marca]
     if serie != "Todas":
         cars = [c for c in cars if c.serie_tipo == serie]
-    if status == "Reservados":
+    if status == "Arquivados":
         cars = [c for c in cars if c.reserva]
-    elif status == "Não reservados":
+    elif status == "Não arquivados":
         cars = [c for c in cars if not c.reserva]
     elif status == "Customizados":
         cars = [c for c in cars if c.customizada]
@@ -229,7 +229,7 @@ def _act_promover(car) -> None:
 COLECAO_ACTIONS = [
     ("⭐", None, _act_favorito),
     (lambda c: "📦" if c.reserva else "📭",
-     "Marcar/desmarcar reserva (não posicionar)", _act_reserva),
+     "Marcar/desmarcar arquivado (não posicionar)", _act_reserva),
     ("✏️", None, _act_editar),
     ("🗑️", None, _act_excluir),
 ]
@@ -346,7 +346,7 @@ with tab1:
     colecao = [c for c in st.session_state.cars if not c.lista_desejos]
     n_reservas = sum(1 for c in colecao if c.reserva)
     st.header(f"Coleção: {len(colecao)} carrinhos"
-              + (f" ({n_reservas} reservas)" if n_reservas else ""))
+              + (f" ({n_reservas} arquivados)" if n_reservas else ""))
 
     editing_id = st.session_state.get("editing_car_id")
     editing_car = None
@@ -423,7 +423,7 @@ with tab1:
                 serie_sel = st.selectbox("Série", serie_opts, index=serie_idx, key="edit_serie_sel")
                 serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_edit")
                 ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
-                reserva_edit = st.checkbox("Reserva (não posicionar em expositor)", value=editing_car.reserva)
+                reserva_edit = st.checkbox("Arquivado (não posicionar em expositor)", value=editing_car.reserva)
                 customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
                 bc1, bc2 = st.columns(2)
                 save = bc1.form_submit_button("Salvar")
@@ -515,7 +515,7 @@ with tab1:
                     serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_add")
                 fl_esq, fl_dir = st.columns(2)
                 with fl_esq:
-                    reserva_add = st.checkbox("Reserva (não posicionar em expositor)", value=False)
+                    reserva_add = st.checkbox("Arquivado (não posicionar em expositor)", value=False)
                     desejo_add = st.checkbox("Lista de desejos (não adquirido ainda)", value=False)
                 with fl_dir:
                     customizada_add = st.checkbox("Customização", value=False)
@@ -700,7 +700,7 @@ with tab3:
             slots = total_slots(shelves, disabled)
             if len(active_cars) > slots:
                 n_reservas = len(cars) - len(active_cars)
-                reserva_note = f" ({n_reservas} reservas)" if n_reservas > 0 else ""
+                reserva_note = f" ({n_reservas} arquivados)" if n_reservas > 0 else ""
                 st.warning(f"{len(active_cars)} carros ativos mas apenas {slots} vagas{reserva_note}. "
                            f"Alguns não serão posicionados.")
 

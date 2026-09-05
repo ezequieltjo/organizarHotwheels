@@ -39,6 +39,34 @@ def test_update_car():
     assert updated.modelo == "Camaro"
 
 
+def test_update_car_promove_reset_created_at():
+    """Sair da lista de desejos redefine created_at (data de adição à coleção)."""
+    from storage import get_connection
+    car_id = insert_car(Car(modelo="Supra", lista_desejos=True))
+    conn = get_connection()
+    conn.execute("UPDATE cars SET created_at='2026-01-01 00:00:00' WHERE id=?", (car_id,))
+    conn.commit()
+    conn.close()
+    car = get_car_by_id(car_id)
+    car.lista_desejos = False
+    update_car(car)
+    assert get_car_by_id(car_id).created_at != "2026-01-01 00:00:00"
+
+
+def test_update_car_sem_promocao_mantem_created_at():
+    """Edição comum (favorito, cor...) não altera created_at."""
+    from storage import get_connection
+    car_id = insert_car(Car(modelo="Supra"))
+    conn = get_connection()
+    conn.execute("UPDATE cars SET created_at='2026-01-01 00:00:00' WHERE id=?", (car_id,))
+    conn.commit()
+    conn.close()
+    car = get_car_by_id(car_id)
+    car.favorito = True
+    update_car(car)
+    assert get_car_by_id(car_id).created_at == "2026-01-01 00:00:00"
+
+
 def test_lista_desejos_roundtrip():
     insert_car(Car(modelo="Supra", lista_desejos=True))
     car = get_car_by_id(1)

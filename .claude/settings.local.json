@@ -128,7 +128,8 @@
       "Bash($SKILL/scripts/review-package 7e71575 *)",
       "Bash(.venv/bin/pytest tests/ -q)",
       "mcp__context-mode__ctx_execute",
-      "mcp__plugin_ecc_chrome-devtools__new_page"
+      "mcp__plugin_ecc_chrome-devtools__new_page",
+      "mcp__context-mode__ctx_execute_file"
     ]
   }
 }

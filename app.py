@@ -491,7 +491,8 @@ with tab1:
                 st.markdown("**Imagem da Miniatura**")
                 pc1, pc2 = st.columns(2)
                 with pc1:
-                    file_photo = st.file_uploader("📁 Upload", type=["jpg", "jpeg", "png", "webp"], key="upload_add")
+                    file_photo = st.file_uploader("Upload", type=["jpg", "jpeg", "png", "webp"],
+                                                  key="upload_add", label_visibility="collapsed")
                     if file_photo:
                         st.session_state._pending_photo = file_photo.getvalue()
                     if st.session_state.get("_pending_photo"):
@@ -510,14 +511,18 @@ with tab1:
                             f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
                             unsafe_allow_html=True)
             with st.form("add_car"):
-                ac_esq, ac_dir = st.columns(2)
-                with ac_esq:
-                    modelo = st.text_input("Modelo")
-                    fabricante_sel = st.selectbox("Fabricante da miniatura", existing_fabricantes + ["+ Novo fabricante"])
-                    ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
-                with ac_dir:
+                l1c1, l1c2 = st.columns(2)
+                with l1c1:
                     marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
+                with l1c2:
+                    modelo = st.text_input("Modelo")
+                l2c1, l2c2, l2c3 = st.columns([1.4, 1.1, 0.6])
+                with l2c1:
+                    fabricante_sel = st.selectbox("Fabricante da miniatura", existing_fabricantes + ["+ Novo fabricante"])
+                with l2c2:
                     serie_sel = st.selectbox("Série", existing_series + ["+ Nova série"])
+                with l2c3:
+                    ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
                 fc1, fc2, fc3 = st.columns(3)
                 with fc1:
                     reserva_add = st.checkbox("Arquivado (não posicionar em expositor)", value=False)

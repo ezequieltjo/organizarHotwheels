@@ -348,6 +348,7 @@ if _logo_path.is_file():
 # --- Main tabs ---
 tab1, tab_wish, tab4, tab2, tab3 = st.tabs(
     ["Coleção", "Lista de Desejos", "Estatísticas", "Expositores", "Organizar"])
+st.markdown("<style>[data-testid='stTabs'] button{font-size:1.25rem}</style>", unsafe_allow_html=True)
 
 with tab1:
     colecao = [c for c in st.session_state.cars if not c.lista_desejos]
@@ -512,24 +513,25 @@ with tab1:
                 ac_esq, ac_dir = st.columns(2)
                 with ac_esq:
                     modelo = st.text_input("Modelo")
-                    marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
                     fabricante_sel = st.selectbox("Fabricante da miniatura", existing_fabricantes + ["+ Novo fabricante"])
-                    serie_sel = st.selectbox("Série", existing_series + ["+ Nova série"])
-                with ac_dir:
                     ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
-                    marca_nova = st.text_input("Nova marca (preencher se '+ Nova marca')", key="marca_nova_add")
-                    fabricante_novo = st.text_input("Novo fabricante (preencher se '+ Novo fabricante')", key="fabricante_novo_add")
-                    serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_add")
-                fl_esq, fl_dir = st.columns(2)
-                with fl_esq:
+                with ac_dir:
+                    marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
+                    serie_sel = st.selectbox("Série", existing_series + ["+ Nova série"])
+                fc1, fc2, fc3 = st.columns(3)
+                with fc1:
                     reserva_add = st.checkbox("Arquivado (não posicionar em expositor)", value=False)
+                with fc2:
                     desejo_add = st.checkbox("Lista de desejos (não adquirido ainda)", value=False)
-                with fl_dir:
+                with fc3:
                     customizada_add = st.checkbox("Customização", value=False)
                 _, add_col, _ = st.columns([2, 1, 2])
                 with add_col:
                     add = st.form_submit_button("Adicionar", type="primary", use_container_width=True)
                 if add:
+                    marca_nova = st.session_state.get("marca_nova_add", "")
+                    fabricante_novo = st.session_state.get("fabricante_novo_add", "")
+                    serie_nova = st.session_state.get("serie_nova_add", "")
                     marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
                     fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
                     serie = serie_nova.strip() if serie_sel == "+ Nova série" and serie_nova.strip() else (serie_sel if serie_sel != "+ Nova série" else "")
@@ -557,6 +559,16 @@ with tab1:
                         st.session_state.car_toast = True
                         st.rerun()
             render_color_sliders("cor_picker_add")
+            with st.container(border=True):
+                st.markdown("**Novas Opções**")
+                st.caption("Preencha aqui quando selecionar '+ Nova...' no formulário acima.")
+                no1, no2, no3 = st.columns(3)
+                with no1:
+                    st.text_input("Nova marca", key="marca_nova_add")
+                with no2:
+                    st.text_input("Novo fabricante", key="fabricante_novo_add")
+                with no3:
+                    st.text_input("Nova série", key="serie_nova_add")
 
 with tab_wish:
     desejos = [c for c in st.session_state.cars if c.lista_desejos]

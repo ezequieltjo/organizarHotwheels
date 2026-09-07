@@ -28,6 +28,7 @@ THUMBS_DIR = PHOTOS_DIR / "thumbs"
 # Cores da logo (usadas no tema e nos gráficos)
 LOGO_VERMELHO = "#ea1c2c"
 LOGO_AMARELO = "#f9d908"
+LARANJA = "#e46124"
 
 ORGANIZERS = {
     "Arco-íris (por cor)": organize_rainbow,
@@ -841,8 +842,13 @@ with tab4:
 
     st.subheader("Coleção")
     _render_stats(
-        [c for c in st.session_state.cars if not c.lista_desejos],
+        [c for c in st.session_state.cars if not c.lista_desejos and not c.reserva],
         LOGO_VERMELHO, "Nenhum carro na coleção ainda.")
+
+    st.subheader("Arquivados")
+    _render_stats(
+        [c for c in st.session_state.cars if c.reserva and not c.lista_desejos],
+        LARANJA, "Nenhum carro arquivado.")
 
     st.subheader("Lista de Desejos")
     _render_stats(

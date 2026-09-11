@@ -417,25 +417,34 @@ with tab1:
 
             # --- Form ---
             with st.form("edit_car"):
-                modelo = st.text_input("Modelo", value=editing_car.modelo)
-                marca_opts = existing_marcas + ["+ Nova marca"]
-                marca_idx = marca_opts.index(editing_car.marca) if editing_car.marca in marca_opts else 0
-                marca_sel = st.selectbox("Marca do carro", marca_opts, index=marca_idx, key="edit_marca_sel")
-                marca_nova = st.text_input("Nova marca (preencher se '+ Nova marca')", key="marca_nova_edit")
-                fab_opts = existing_fabricantes + ["+ Novo fabricante"]
-                fab_idx = fab_opts.index(editing_car.fabricante) if editing_car.fabricante in fab_opts else 0
-                fabricante_sel = st.selectbox("Fabricante da miniatura", fab_opts, index=fab_idx, key="edit_fab_sel")
-                fabricante_novo = st.text_input("Novo fabricante (preencher se '+ Novo fabricante')", key="fabricante_novo_edit")
-                serie_opts = existing_series + ["+ Nova série"]
-                serie_idx = serie_opts.index(editing_car.serie_tipo) if editing_car.serie_tipo in serie_opts else 0
-                serie_sel = st.selectbox("Série", serie_opts, index=serie_idx, key="edit_serie_sel")
-                serie_nova = st.text_input("Nova série (preencher se '+ Nova série')", key="serie_nova_edit")
-                ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
-                reserva_edit = st.checkbox("Arquivado (não posicionar em expositor)", value=editing_car.reserva)
-                customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
-                bc1, bc2 = st.columns(2)
-                save = bc1.form_submit_button("Salvar")
-                cancel = bc2.form_submit_button("Cancelar")
+                l1c1, l1c2 = st.columns(2)
+                with l1c1:
+                    marca_opts = existing_marcas + ["+ Nova marca"]
+                    marca_idx = marca_opts.index(editing_car.marca) if editing_car.marca in marca_opts else 0
+                    marca_sel = st.selectbox("Marca do carro", marca_opts, index=marca_idx, key="edit_marca_sel")
+                with l1c2:
+                    modelo = st.text_input("Modelo", value=editing_car.modelo)
+                l2c1, l2c2, l2c3 = st.columns([1.4, 1.1, 0.6])
+                with l2c1:
+                    fab_opts = existing_fabricantes + ["+ Novo fabricante"]
+                    fab_idx = fab_opts.index(editing_car.fabricante) if editing_car.fabricante in fab_opts else 0
+                    fabricante_sel = st.selectbox("Fabricante da miniatura", fab_opts, index=fab_idx, key="edit_fab_sel")
+                with l2c2:
+                    serie_opts = existing_series + ["+ Nova série"]
+                    serie_idx = serie_opts.index(editing_car.serie_tipo) if editing_car.serie_tipo in serie_opts else 0
+                    serie_sel = st.selectbox("Série", serie_opts, index=serie_idx, key="edit_serie_sel")
+                with l2c3:
+                    ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
+                fc1, fc2, _ = st.columns(3)
+                with fc1:
+                    reserva_edit = st.checkbox("Arquivado (não posicionar em expositor)", value=editing_car.reserva)
+                with fc2:
+                    customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
+                _, btn_col, _ = st.columns([2, 1, 2])
+                with btn_col:
+                    sb1, sb2 = st.columns(2)
+                    save = sb1.form_submit_button("Salvar", type="primary", use_container_width=True)
+                    cancel = sb2.form_submit_button("Cancelar", use_container_width=True)
                 if cancel:
                     st.session_state.pop("_pending_photo", None)
                     st.session_state.pop("_pending_picker_color", None)
@@ -443,6 +452,9 @@ with tab1:
                     del st.session_state.editing_car_id
                     st.rerun()
                 if save:
+                    marca_nova = st.session_state.get("marca_nova_edit", "")
+                    fabricante_novo = st.session_state.get("fabricante_novo_edit", "")
+                    serie_nova = st.session_state.get("serie_nova_edit", "")
                     marca = marca_nova.strip() if marca_sel == "+ Nova marca" and marca_nova.strip() else (marca_sel if marca_sel != "+ Nova marca" else "")
                     fabricante = fabricante_novo.strip() if fabricante_sel == "+ Novo fabricante" and fabricante_novo.strip() else (fabricante_sel if fabricante_sel != "+ Novo fabricante" else "")
                     serie = serie_nova.strip() if serie_sel == "+ Nova série" and serie_nova.strip() else (serie_sel if serie_sel != "+ Nova série" else "")
@@ -480,6 +492,16 @@ with tab1:
                         st.session_state.car_toast = True
                         st.rerun()
             render_color_sliders(_cor_key)
+            with st.container(border=True):
+                st.markdown("**Novas Opções**")
+                st.caption("Preencha aqui quando selecionar '+ Nova...' no formulário acima.")
+                no1, no2, no3 = st.columns(3)
+                with no1:
+                    st.text_input("Nova marca", key="marca_nova_edit")
+                with no2:
+                    st.text_input("Novo fabricante", key="fabricante_novo_edit")
+                with no3:
+                    st.text_input("Nova série", key="serie_nova_edit")
         else:
             st.subheader("Adicionar carro")
             existing_marcas = sorted(set(c.marca for c in st.session_state.cars if c.marca))

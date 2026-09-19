@@ -19,6 +19,7 @@ from color_sliders import render_color_sliders
 import time
 import base64
 import io
+from collections import Counter
 from PIL import Image
 
 PHOTOS_DIR = Path(__file__).parent / "photos"
@@ -122,7 +123,12 @@ def _remove_photo(path: str | None) -> None:
         pass
 
 
-STATUS_FILTRO_OPTS = ["Todos", "Arquivados", "Não arquivados", "Customizados", "Não customizados"]
+STATUS_FILTRO_OPTS = ["Todos", "Arquivados", "Não arquivados", "Customizados", "Não customizados", "Repetidos"]
+
+
+def _nomes_repetidos(cars: list) -> set:
+    """Modelos com nome exatamente igual a outro carro da lista."""
+    return {m for m, n in Counter(c.modelo for c in cars).items() if n > 1}
 
 
 def _filter_cars(cars: list, busca: str, marca: str, serie: str,
@@ -146,6 +152,9 @@ def _filter_cars(cars: list, busca: str, marca: str, serie: str,
         cars = [c for c in cars if c.customizada]
     elif status == "Não customizados":
         cars = [c for c in cars if not c.customizada]
+    elif status == "Repetidos":
+        rep = _nomes_repetidos(cars)
+        cars = [c for c in cars if c.modelo in rep]
     return cars
 
 
@@ -308,6 +317,7 @@ def _list_toolbar(source: list, prefix: str) -> list:
 @st.fragment
 def _render_car_list(source: list, prefix: str, actions: list) -> None:
     """Cards em linhas. actions: (emoji|fn(car), help, fn(car))."""
+    repetidos = _nomes_repetidos(source)
     for car in _list_toolbar(source, prefix):
         with st.container():
             col1, col2, col3 = st.columns([1, 6, 2])
@@ -324,7 +334,8 @@ def _render_car_list(source: list, prefix: str, actions: list) -> None:
                 fav = "★ " if car.favorito else ""
                 reserva_marker = "📦 " if car.reserva else ""
                 customizada_marker = "🖌️ " if car.customizada else ""
-                st.write(f"**{reserva_marker}{customizada_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
+                repetido_marker = "🔁 " if car.modelo in repetidos else ""
+                st.write(f"**{reserva_marker}{customizada_marker}{repetido_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
             with col3:
                 btns = st.columns(len(actions))
                 for i, (btn_col, (emoji, help_text, fn)) in enumerate(zip(btns, actions)):
@@ -348,7 +359,10 @@ if _logo_path.is_file():
 # --- Main tabs ---
 tab1, tab_wish, tab4, tab2, tab3 = st.tabs(
     ["Coleção", "Lista de Desejos", "Estatísticas", "Expositores", "Organizar"])
-st.markdown("<style>[data-testid='stTabs'] button{font-size:1.25rem}</style>", unsafe_allow_html=True)
+st.markdown("<style>[data-testid='stTabs'] button{font-size:1.25rem}[data-testid='stFormSubmitButton'] button{white-space:nowrap}"
+            "[data-testid='stNumberInputStepUp'] > *,[data-testid='stNumberInputStepDown'] > *{display:none}"
+            "[data-testid='stNumberInputStepUp']::after{content:'+';font-size:1rem;font-weight:600;line-height:1}"
+            "[data-testid='stNumberInputStepDown']::after{content:'-';font-size:1rem;font-weight:600;line-height:1}</style>", unsafe_allow_html=True)
 
 with tab1:
     colecao = [c for c in st.session_state.cars if not c.lista_desejos]
@@ -440,7 +454,7 @@ with tab1:
                     reserva_edit = st.checkbox("Arquivado (não posicionar em expositor)", value=editing_car.reserva)
                 with fc2:
                     customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
-                _, btn_col, _ = st.columns([2, 1, 2])
+                _, btn_col, _ = st.columns([1, 1, 1])
                 with btn_col:
                     sb1, sb2 = st.columns(2)
                     save = sb1.form_submit_button("Salvar", type="primary", use_container_width=True)

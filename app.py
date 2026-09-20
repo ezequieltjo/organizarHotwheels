@@ -93,6 +93,18 @@ def _img_thumb_b64(path) -> str:
     return base64.b64encode(ensure_thumb(resolved, THUMBS_DIR).read_bytes()).decode()
 
 
+def _foto_html(car) -> str:
+    """HTML da foto em 4:3 com borda na cor do carro; swatch da cor se sem foto.
+
+    data-hw-card marca o card para o JS do layout mobile (hw_pair_row_js)."""
+    if _resolve_photo(car.foto_path) is not None:
+        return (f"<div data-hw-card style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden'>"
+                f"<img src='data:image/jpeg;base64,{_img_thumb_b64(car.foto_path)}' "
+                f"style='width:100%;aspect-ratio:4/3;object-fit:cover;display:block'></div>")
+    return (f"<div data-hw-card style='width:100%;aspect-ratio:4/3;background:{car.cor_hex};"
+            f"border-radius:4px'></div>")
+
+
 def _save_photo(photo_bytes: bytes, modelo: str, old_path: str | None = None) -> str:
     """Save photo to disk, return relative path. Remove previous photo when replacing."""
     if photo_bytes[:4] == b"RIFF" and photo_bytes[8:12] == b"WEBP":
@@ -247,33 +259,32 @@ COLECAO_ACTIONS = [
     ("🗑️", None, _act_excluir),
 ]
 
+def _wish_card(car) -> None:
+    """Card vertical: foto, nome, botões ➕/🗑️ (grid 5-col desktop e 2-col mobile)."""
+    st.markdown(_foto_html(car), unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b></div>",
+        unsafe_allow_html=True)
+    b1, b2 = st.columns(2)
+    if b1.button("➕", key=f"wish_add_{car.id}", help="Adicionar à coleção"):
+        _act_promover(car)
+    if b2.button("🗑️", key=f"wish_del_{car.id}", help="Remover da lista de desejos"):
+        _act_excluir(car)
+
+
 @st.fragment
 def _wish_grid(source: list) -> None:
-    """Matrix 5 colunas: foto, nome+marca, botões ➕/🗑️."""
+    """Matriz 5 colunas (desktop) ou cards 2 colunas (mobile): foto, nome, ➕/🗑️."""
     cars = _list_toolbar(source, "wish")
-    for i in range(0, len(cars), 5):
-        cols = st.columns(5)
-        for col, car in zip(cols, cars[i:i + 5]):
+    if _is_mobile():
+        per_row = 2
+    else:
+        per_row = 5
+    for i in range(0, len(cars), per_row):
+        cols = st.columns(per_row)
+        for col, car in zip(cols, cars[i:i + per_row]):
             with col:
-                if _resolve_photo(car.foto_path) is not None:
-                    st.markdown(
-                        f"<div style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden'>"
-                        f"<img src='data:image/jpeg;base64,{_img_thumb_b64(car.foto_path)}' "
-                        f"style='width:100%;aspect-ratio:4/3;object-fit:cover;display:block'></div>",
-                        unsafe_allow_html=True)
-                else:
-                    st.markdown(
-                        f"<div style='width:100%;aspect-ratio:4/3;background:{car.cor_hex};"
-                        f"border-radius:4px'></div>",
-                        unsafe_allow_html=True)
-                st.markdown(
-                    f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b></div>",
-                    unsafe_allow_html=True)
-                b1, b2 = st.columns(2)
-                if b1.button("➕", key=f"wish_add_{car.id}", help="Adicionar à coleção"):
-                    _act_promover(car)
-                if b2.button("🗑️", key=f"wish_del_{car.id}", help="Remover da lista de desejos"):
-                    _act_excluir(car)
+                _wish_card(car)
 
 
 def _list_toolbar(source: list, prefix: str) -> list:
@@ -314,11 +325,44 @@ def _list_toolbar(source: list, prefix: str) -> list:
     return cars
 
 
+def _is_mobile() -> bool:
+    """True em celular (User-Agent com 'Mobi'). iPad não tem 'Mobi' — recebe layout desktop."""
+    ua = st.context.headers.get("User-Agent") or ""
+    return "Mobi" in ua
+
+
+def _render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
+    """Card vertical p/ mobile: foto grande em cima, texto central, botões em linha."""
+    st.markdown(_foto_html(car), unsafe_allow_html=True)
+    fav = "★ " if car.favorito else ""
+    reserva_marker = "📦 " if car.reserva else ""
+    customizada_marker = "🖌️ " if car.customizada else ""
+    repetido_marker = "🔁 " if car.modelo in repetidos else ""
+    st.markdown(
+        f"<div style='text-align:center'><b>{reserva_marker}{customizada_marker}{repetido_marker}"
+        f"{car.marca} {fav}{car.modelo}</b><br>"
+        f"<small>{car.fabricante or '?'} | {car.serie_tipo}</small></div>",
+        unsafe_allow_html=True)
+    btns = st.columns(len(actions))
+    for i, (btn_col, (emoji, help_text, fn)) in enumerate(zip(btns, actions)):
+        label = emoji(car) if callable(emoji) else emoji
+        if btn_col.button(label, key=f"act_{prefix}_{i}_{car.id}", help=help_text):
+            fn(car)
+
+
 @st.fragment
 def _render_car_list(source: list, prefix: str, actions: list) -> None:
-    """Cards em linhas. actions: (emoji|fn(car), help, fn(car))."""
+    """Cards em linhas (desktop) ou grade 2 colunas (mobile). actions: (emoji|fn(car), help, fn(car))."""
     repetidos = _nomes_repetidos(source)
-    for car in _list_toolbar(source, prefix):
+    cars = _list_toolbar(source, prefix)
+    if _is_mobile():
+        for i in range(0, len(cars), 2):
+            cols = st.columns(2)
+            for col, car in zip(cols, cars[i:i + 2]):
+                with col:
+                    _render_car_card(car, repetidos, prefix, actions)
+        return
+    for car in cars:
         with st.container():
             col1, col2, col3 = st.columns([1, 6, 2])
             with col1:
@@ -359,10 +403,27 @@ if _logo_path.is_file():
 # --- Main tabs ---
 tab1, tab_wish, tab4, tab2, tab3 = st.tabs(
     ["Coleção", "Lista de Desejos", "Estatísticas", "Expositores", "Organizar"])
+# Grade mobile de cards (ver _render_car_list): Streamlit empilha as colunas
+# <640px; este seletor casa só com linhas de pares — exatamente 2 colunas
+# (:nth-child(2) é a última) e cada uma com um card (data-hw-card, _foto_html).
+# Desktop usa <div> de 60px sem o marcador; a grade de desejos tem 5 colunas.
+_HW_PAIR_SEL = ("[data-testid='stHorizontalBlock']"
+                ":has(>[data-testid='stColumn']:first-child [data-hw-card])"
+                ":has(>[data-testid='stColumn']:nth-child(2):last-child [data-hw-card])")
 st.markdown("<style>[data-testid='stTabs'] button{font-size:1.25rem}[data-testid='stFormSubmitButton'] button{white-space:nowrap}"
             "[data-testid='stNumberInputStepUp'] > *,[data-testid='stNumberInputStepDown'] > *{display:none}"
             "[data-testid='stNumberInputStepUp']::after{content:'+';font-size:1rem;font-weight:600;line-height:1}"
-            "[data-testid='stNumberInputStepDown']::after{content:'-';font-size:1rem;font-weight:600;line-height:1}</style>", unsafe_allow_html=True)
+            "[data-testid='stNumberInputStepDown']::after{content:'-';font-size:1rem;font-weight:600;line-height:1}"
+            f"{_HW_PAIR_SEL}{{flex-direction:row!important;flex-wrap:nowrap!important;align-items:stretch!important}}"
+            f"{_HW_PAIR_SEL}>[data-testid='stColumn']{{flex:0 0 calc(50% - .375rem)!important;min-width:0!important}}"
+            f"{_HW_PAIR_SEL} [data-testid='stVerticalBlock']{{align-items:stretch!important;height:100%!important}}"
+            f"{_HW_PAIR_SEL} [data-testid='stElementContainer']{{width:100%!important}}"
+            f"{_HW_PAIR_SEL} [data-testid='stVerticalBlock']>[data-testid='stLayoutWrapper']{{margin-top:auto!important}}"
+            f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock']{{flex-direction:row!important;flex-wrap:nowrap!important}}"
+            f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock']> [data-testid='stColumn']{{flex:1 1 0%!important;min-width:0!important}}"
+            f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock'] [data-testid='stButton']{{width:100%!important}}"
+            f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock'] button{{padding:.4rem 0!important;min-width:0!important;max-width:100%!important;width:100%!important;height:auto!important}}"
+            "</style>", unsafe_allow_html=True)
 
 with tab1:
     colecao = [c for c in st.session_state.cars if not c.lista_desejos]

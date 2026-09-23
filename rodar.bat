@@ -7,7 +7,7 @@ where py >nul 2>nul && set "PYTHON=py -3"
 
 REM Cria venv se nao existir
 if not exist ".venv\Scripts\python.exe" (
-    echo Criando ambiente virtual (.venv)...
+    echo Criando ambiente virtual ^(.venv^)...
     %PYTHON% -m venv .venv
     if errorlevel 1 (
         echo Erro: falha ao criar venv. Instale o Python em https://python.org

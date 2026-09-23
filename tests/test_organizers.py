@@ -32,7 +32,7 @@ def test_fill_grid_basic():
     assert len(result) == 3
     assert result[1] == (1, 0, 0)
     assert result[2] == (1, 0, 1)
-    assert result[3] == (1, 1, 0)
+    assert result[3] == (1, 1, 1)  # snake: fileira ímpar R→L
 
 
 def test_fill_grid_overflow():
@@ -248,7 +248,7 @@ def test_fill_wall_grid_1x2():
     assert len(result) == 3
     assert result[1] == (1, 0, 0)
     assert result[2] == (1, 0, 1)
-    assert result[3] == (2, 0, 0)
+    assert result[3] == (2, 0, 1)  # snake: 2a fileira da parede R→L
 
 
 def test_fill_wall_grid_flows_across_wall_row():
@@ -281,7 +281,7 @@ def test_fill_wall_grid_empty_position():
     assert len(result) == 3
     assert result[1] == (1, 0, 0)
     assert result[2] == (1, 0, 1)
-    assert result[3] == (2, 0, 0)
+    assert result[3] == (2, 0, 1)  # snake: 2a fileira da parede R→L
 
 
 def test_organize_rainbow_with_wall():

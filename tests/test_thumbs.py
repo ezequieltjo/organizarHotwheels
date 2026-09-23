@@ -34,7 +34,7 @@ def test_ensure_thumb_regenerates_when_stale(tmp_path):
     thumbs = tmp_path / "thumbs"
     ensure_thumb(src, thumbs)
     thumb = thumbs / "a.jpg"
-    old = thumb.stat().st_mtime_ns - 1_000_000
+    old = thumb.stat().st_mtime_ns - 1_000_000_000  # -1s: gerar thumb custa >1ms
     os.utime(thumb, ns=(old, old))  # thumb mais velho que a fonte
 
     ensure_thumb(src, thumbs)

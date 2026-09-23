@@ -129,7 +129,19 @@
       "Bash(.venv/bin/pytest tests/ -q)",
       "mcp__context-mode__ctx_execute",
       "mcp__plugin_ecc_chrome-devtools__new_page",
-      "mcp__context-mode__ctx_execute_file"
+      "mcp__context-mode__ctx_execute_file",
+      "Bash(/c/Users/Admin/AppData/Local/Programs/Python/Python311/python -c ' *)",
+      "Bash(cmd //c \"rodar.bat\")",
+      "Bash(cmd //c rodar.bat)",
+      "Bash(cmd //c \"D:\\\\\\\\Code\\\\\\\\organizarHotwheels\\\\\\\\rodar.bat\")",
+      "Bash(unix2dos /tmp/test.bat)",
+      "Bash(sed -i 's/$/\\\\r/' /tmp/test.bat)",
+      "Bash(cmd //c \"C:\\\\\\\\Users\\\\\\\\Admin\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\test.bat\")",
+      "Bash(sed 's/@echo off/@echo on/' rodar.bat)",
+      "Bash(sed -i 's/$/\\\\r/' /tmp/dbg.bat)",
+      "Bash(cmd //c \"C:\\\\\\\\Users\\\\\\\\Admin\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\dbg.bat\")",
+      "Bash(awk 'NR>=8 && NR<=16' rodar.bat)",
+      "Skill(git-commit)"
     ]
   }
 }

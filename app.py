@@ -7,8 +7,9 @@ from storage import (init_db, insert_car, get_all_cars, update_car, delete_car,
                      insert_shelf, get_all_shelves, update_shelf, delete_shelf,
                      clear_positions, apply_positions, get_wall_config, save_wall_config,
                      get_all_disabled_slots, get_disabled_slots, replace_disabled_slots,
-                     set_reserva)
+                     set_reserva, DB_PATH)
 from importer import import_file
+from backup import export_zip, import_zip, reset_collection
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
                         organize_favorites_first, total_slots)
@@ -19,6 +20,7 @@ from color_sliders import render_color_sliders
 import time
 import base64
 import io
+import zipfile
 from collections import Counter
 from PIL import Image
 
@@ -400,9 +402,15 @@ if _logo_path.is_file():
         f"style='height:{LOGO_HEADER_HEIGHT};width:auto'></div>",
         unsafe_allow_html=True)
 
+@st.cache_data
+def _export_cached(db_mtime: float) -> bytes:
+    # ponytail: mtime do DB como chave — toda mudança de coleção escreve no DB
+    return export_zip(DB_PATH, PHOTOS_DIR)
+
+
 # --- Main tabs ---
-tab1, tab_wish, tab4, tab2, tab3 = st.tabs(
-    ["Coleção", "Lista de Desejos", "Estatísticas", "Expositores", "Organizar"])
+tab1, tab_wish, tab4, tab2, tab3, tab_backup = st.tabs(
+    ["Coleção", "Lista de Desejos", "Estatísticas", "Expositores", "Organizar", "Backup"])
 # Grade mobile de cards (ver _render_car_list): Streamlit empilha as colunas
 # <640px; este seletor casa só com linhas de pares — exatamente 2 colunas
 # (:nth-child(2) é a última) e cada uma com um card (data-hw-card, _foto_html).
@@ -987,6 +995,49 @@ if _toast_type:
         f'setTimeout(function(){{t.style.opacity="0";}},500);'
         f'setTimeout(function(){{t.remove();}},800);'
     )
+
+with tab_backup:
+    st.header("Backup da Coleção")
+    st.caption("Exporta banco + fotos num ZIP. Importe em outra máquina para "
+               "continuar de onde parou, ou para começar sua própria coleção.")
+
+    st.download_button(
+        "⬇️ Exportar coleção (.zip)",
+        _export_cached(DB_PATH.stat().st_mtime),
+        f"colecao_{time.strftime('%Y%m%d')}.zip",
+        "application/zip",
+        disabled=not st.session_state.cars and not st.session_state.shelves)
+
+    st.divider()
+
+    st.subheader("Importar backup")
+    st.warning("Importar **substitui toda a coleção atual** "
+               "(carros, expositores e fotos).")
+    up_backup = st.file_uploader("ZIP do backup", type=["zip"], key="backup_zip")
+    if up_backup and st.button("📥 Importar backup"):
+        try:
+            n = import_zip(DB_PATH, PHOTOS_DIR, up_backup.getvalue())
+        except (ValueError, zipfile.BadZipFile) as e:
+            st.error(f"Backup inválido: {e}")
+        else:
+            _export_cached.clear()
+            refresh()
+            st.session_state.assignment = None
+            st.success(f"{n} carros importados!")
+            st.rerun()
+
+    st.divider()
+
+    st.subheader("Apagar coleção")
+    st.warning("Apaga **todos** os carros, expositores e fotos enviadas, "
+               "começando uma base vazia. Baixe um backup antes se quiser guardar.")
+    if st.checkbox("Entendo que esta ação apaga tudo", key="reset_confirm"):
+        if st.button("🗑️ Apagar coleção"):
+            reset_collection(DB_PATH, PHOTOS_DIR, THUMBS_DIR)
+            _export_cached.clear()
+            refresh()
+            st.session_state.assignment = None
+            st.rerun()
 
 st.html(f"""<script>
 (function(){{

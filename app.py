@@ -107,6 +107,49 @@ def _foto_html(car) -> str:
             f"border-radius:4px'></div>")
 
 
+def _act_zoom(car) -> None:
+    if _resolve_photo(car.foto_path) is not None:
+        st.session_state["_zoom_id"] = car.id
+
+
+def _zoom_dialog(car) -> None:
+    titulo = f"{car.marca} {car.modelo}".strip()
+    if car.ano:
+        titulo += f" ({car.ano})"
+    if car.serie_tipo:
+        titulo += f" — {car.serie_tipo}"
+
+    @st.dialog(titulo, width="large")
+    def _show() -> None:
+        resolved = _resolve_photo(car.foto_path)
+        b64 = base64.b64encode(resolved.read_bytes()).decode()
+        st.markdown(
+            f"<div style='display:flex;justify-content:center'>"
+            f"<img src='data:image/jpeg;base64,{b64}' "
+            f"style='max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px'></div>",
+            unsafe_allow_html=True)
+
+    _show()
+
+
+def _maybe_zoom() -> None:
+    """Abre o dialog de zoom se um botão de zoom foi clicado (chamar dentro do fragment)."""
+    zoom_id = st.session_state.pop("_zoom_id", None)
+    if zoom_id is None:
+        return
+    car = next((c for c in st.session_state.cars if c.id == zoom_id), None)
+    if car:
+        _zoom_dialog(car)
+
+
+def _zoom_btn(car, prefix: str) -> None:
+    """Botão invisível sobreposto à foto via CSS (ver regra :has no bloco <style>)."""
+    if _resolve_photo(car.foto_path) is None:
+        return
+    st.button("🔍", key=f"zoom_{prefix}_{car.id}",
+              on_click=_act_zoom, args=(car,), type="primary")
+
+
 def _save_photo(photo_bytes: bytes, modelo: str, old_path: str | None = None) -> str:
     """Save photo to disk, return relative path. Remove previous photo when replacing."""
     if photo_bytes[:4] == b"RIFF" and photo_bytes[8:12] == b"WEBP":
@@ -264,6 +307,7 @@ COLECAO_ACTIONS = [
 def _wish_card(car) -> None:
     """Card vertical: foto, nome, botões ➕/🗑️ (grid 5-col desktop e 2-col mobile)."""
     st.markdown(_foto_html(car), unsafe_allow_html=True)
+    _zoom_btn(car, "wish")
     st.markdown(
         f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b></div>",
         unsafe_allow_html=True)
@@ -278,6 +322,7 @@ def _wish_card(car) -> None:
 def _wish_grid(source: list) -> None:
     """Matriz 5 colunas (desktop) ou cards 2 colunas (mobile): foto, nome, ➕/🗑️."""
     cars = _list_toolbar(source, "wish")
+    _maybe_zoom()
     if _is_mobile():
         per_row = 2
     else:
@@ -336,6 +381,7 @@ def _is_mobile() -> bool:
 def _render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
     """Card vertical p/ mobile: foto grande em cima, texto central, botões em linha."""
     st.markdown(_foto_html(car), unsafe_allow_html=True)
+    _zoom_btn(car, "card")
     fav = "★ " if car.favorito else ""
     reserva_marker = "📦 " if car.reserva else ""
     customizada_marker = "🖌️ " if car.customizada else ""
@@ -357,6 +403,7 @@ def _render_car_list(source: list, prefix: str, actions: list) -> None:
     """Cards em linhas (desktop) ou grade 2 colunas (mobile). actions: (emoji|fn(car), help, fn(car))."""
     repetidos = _nomes_repetidos(source)
     cars = _list_toolbar(source, prefix)
+    _maybe_zoom()
     if _is_mobile():
         for i in range(0, len(cars), 2):
             cols = st.columns(2)
@@ -370,9 +417,10 @@ def _render_car_list(source: list, prefix: str, actions: list) -> None:
             with col1:
                 if _resolve_photo(car.foto_path) is not None:
                     st.markdown(
-                        f"<div style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:60px;height:45px'>"
+                        f"<div data-hw-card data-hw-thumb style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:60px;height:45px'>"
                         f"<img src='data:image/jpeg;base64,{_img_thumb_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",
                         unsafe_allow_html=True)
+                    _zoom_btn(car, "row")
                 else:
                     st.markdown(f"<div style='width:60px;height:45px;background:{car.cor_hex};border-radius:4px'></div>",
                                 unsafe_allow_html=True)
@@ -431,6 +479,23 @@ st.markdown("<style>[data-testid='stTabs'] button{font-size:1.25rem}[data-testid
             f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock']> [data-testid='stColumn']{{flex:1 1 0%!important;min-width:0!important}}"
             f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock'] [data-testid='stButton']{{width:100%!important}}"
             f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock'] button{{padding:.4rem 0!important;min-width:0!important;max-width:100%!important;width:100%!important;height:auto!important}}"
+            # Zoom da foto: botão invisível cobrindo a foto do card (_zoom_btn).
+            # Coluna com card = position:relative; o botão do zoom é o único
+            # primário fora de um form na coluna (Salvar/Adicionar ficam em forms).
+            "[data-testid='stColumn']{position:relative}"
+            "[data-testid='stColumn']:has([data-hw-card])"
+            " button[kind='primary']:not([data-testid='stForm'] *)"
+            "{position:absolute;top:0;left:0;width:100%;aspect-ratio:4/3;min-width:0;"
+            "opacity:0;border:0;padding:0;cursor:pointer;z-index:9}"
+            # o container do botão é position:relative no CSS do Streamlit e
+            # viraria o bloco de referência do absolute — neutraliza
+            "[data-testid='stColumn']:has([data-hw-card])"
+            ">[data-testid='stVerticalBlock']>[data-testid='stElementContainer']"
+            ":has(button[kind='primary']){position:static}"
+            # thumb 60x45 fixo (lista desktop): botão do tamanho do thumb
+            "[data-testid='stColumn']:has([data-hw-thumb])"
+            " button[kind='primary']:not([data-testid='stForm'] *)"
+            "{width:60px;height:45px;aspect-ratio:auto}"
             "</style>", unsafe_allow_html=True)
 
 with tab1:

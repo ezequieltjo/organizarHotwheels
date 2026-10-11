@@ -1,5 +1,6 @@
 import streamlit as st
 from pathlib import Path
+from datetime import date
 
 st.set_page_config(layout="wide")
 from models import Car, ShelfConfig, ParedeConfig, GradientConfig
@@ -572,7 +573,7 @@ with tab1:
                     marca_sel = st.selectbox("Marca do carro", marca_opts, index=marca_idx, key="edit_marca_sel")
                 with l1c2:
                     modelo = st.text_input("Modelo", value=editing_car.modelo)
-                l2c1, l2c2, l2c3 = st.columns([1.4, 1.1, 0.6])
+                l2c1, l2c2 = st.columns(2)
                 with l2c1:
                     fab_opts = existing_fabricantes + ["+ Novo fabricante"]
                     fab_idx = fab_opts.index(editing_car.fabricante) if editing_car.fabricante in fab_opts else 0
@@ -581,8 +582,14 @@ with tab1:
                     serie_opts = existing_series + ["+ Nova série"]
                     serie_idx = serie_opts.index(editing_car.serie_tipo) if editing_car.serie_tipo in serie_opts else 0
                     serie_sel = st.selectbox("Série", serie_opts, index=serie_idx, key="edit_serie_sel")
-                with l2c3:
+                l3c1, l3c2 = st.columns(2)
+                with l3c1:
                     ano = st.number_input("Ano", min_value=1950, max_value=2030, value=editing_car.ano)
+                with l3c2:
+                    data_inicial = (date.fromisoformat(editing_car.created_at[:10])
+                                    if editing_car.created_at else date.today())
+                    data_adicao = st.date_input("Data de adição à coleção", value=data_inicial,
+                                                format="DD/MM/YYYY")
                 fc1, fc2, _ = st.columns(3)
                 with fc1:
                     reserva_edit = st.checkbox("Arquivado (não posicionar em expositor)", value=editing_car.reserva)
@@ -626,11 +633,13 @@ with tab1:
                         editing_car.foto_path = foto_path
                         editing_car.reserva = reserva_edit
                         editing_car.customizada = customizada_edit
+                        hora = editing_car.created_at[11:] if editing_car.created_at else "00:00:00"
+                        editing_car.created_at = f"{data_adicao.isoformat()} {hora}"
                         if reserva_edit and editing_car.expositor_id is not None:
-                            update_car(editing_car)
+                            update_car(editing_car, created_at=editing_car.created_at)
                             set_reserva(editing_car.id, True)  # atomic clear of position
                         else:
-                            update_car(editing_car)
+                            update_car(editing_car, created_at=editing_car.created_at)
                         st.session_state.pop("_pending_photo", None)
                         st.session_state.pop("_pending_picker_color", None)
                         st.session_state.pop("_cpicker_picker_edit", None)
@@ -686,12 +695,13 @@ with tab1:
                     marca_sel = st.selectbox("Marca do carro", existing_marcas + ["+ Nova marca"])
                 with l1c2:
                     modelo = st.text_input("Modelo")
-                l2c1, l2c2, l2c3 = st.columns([1.4, 1.1, 0.6])
+                l2c1, l2c2 = st.columns(2)
                 with l2c1:
                     fabricante_sel = st.selectbox("Fabricante da miniatura", existing_fabricantes + ["+ Novo fabricante"])
                 with l2c2:
                     serie_sel = st.selectbox("Série", existing_series + ["+ Nova série"])
-                with l2c3:
+                l3c1, _ = st.columns(2)
+                with l3c1:
                     ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
                 fc1, fc2, fc3 = st.columns(3)
                 with fc1:

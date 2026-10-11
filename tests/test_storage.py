@@ -67,6 +67,18 @@ def test_update_car_sem_promocao_mantem_created_at():
     assert get_car_by_id(car_id).created_at == "2026-01-01 00:00:00"
 
 
+def test_update_car_created_at_parametro():
+    """update_car com created_at altera a data de adição preservando update_at."""
+    car_id = insert_car(Car(modelo="Supra"))
+    car = get_car_by_id(car_id)
+    update_car(car, created_at="2025-06-15 10:30:00")
+    updated = get_car_by_id(car_id)
+    assert updated.created_at == "2025-06-15 10:30:00"
+    # sem o parâmetro, created_at permanece
+    update_car(updated)
+    assert get_car_by_id(car_id).created_at == "2025-06-15 10:30:00"
+
+
 def test_lista_desejos_roundtrip():
     insert_car(Car(modelo="Supra", lista_desejos=True))
     car = get_car_by_id(1)

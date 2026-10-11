@@ -502,8 +502,12 @@ st.markdown("<style>[data-testid='stTabs'] button{font-size:1.25rem}[data-testid
 with tab1:
     colecao = [c for c in st.session_state.cars if not c.lista_desejos]
     n_reservas = sum(1 for c in colecao if c.reserva)
+    # repetidos = unidades extras; a primeira de cada (modelo, marca) não conta
+    n_repetidos = len(colecao) - len({(c.modelo, c.marca) for c in colecao})
+    detalhes = ", ".join(f"{n} {lbl}" for n, lbl in
+                         ((n_repetidos, "repetidos"), (n_reservas, "arquivados")) if n)
     st.header(f"Coleção: {len(colecao)} carrinhos"
-              + (f" ({n_reservas} arquivados)" if n_reservas else ""))
+              + (f" ({detalhes})" if detalhes else ""))
 
     editing_id = st.session_state.get("editing_car_id")
     editing_car = None

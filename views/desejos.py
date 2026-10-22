@@ -40,6 +40,6 @@ def render() -> None:
     desejos = [c for c in st.session_state.cars if c.lista_desejos]
     st.header(f"Lista de Desejos: {len(desejos)} carrinhos")
     if not desejos:
-        st.info("Nenhum carro na lista de desejos. Marque 'Lista de desejos' ao adicionar um carro.")
+        st.info("Nenhum carro na lista de desejos. Marque **Lista de desejos** ao adicionar um carro.", icon=":material/favorite:")
     else:
         wish_grid(desejos)

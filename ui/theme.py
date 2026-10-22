@@ -31,6 +31,9 @@ _HW_PAIR_SEL = ("[data-testid='stHorizontalBlock']"
 
 def inject_base_css() -> None:
     st.markdown("<style>"
+                # header nativo oculto; conteúdo sobe
+                "header[data-testid='stHeader']{display:none!important}"
+                "div[data-testid='stMainBlockContainer']{padding-top:1rem!important}"
                 # logo (conteúdo do usuário na sidebar) acima da navegação
                 "[data-testid='stSidebarContent']{display:flex;flex-direction:column}"
                 "[data-testid='stSidebarContent'] [data-testid='stSidebarNav']{order:3}"

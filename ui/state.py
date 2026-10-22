@@ -10,3 +10,15 @@ def refresh() -> None:
     st.session_state.shelves = get_all_shelves()
     st.session_state.wall = get_wall_config()
     st.session_state.disabled = get_all_disabled_slots()
+
+
+def notify(text: str, icon: str = "✅") -> None:
+    """Agenda toast nativo para o próximo run (sobrevive ao st.rerun)."""
+    st.session_state._hw_toast = {"text": text, "icon": icon}
+
+
+def pending_toast() -> None:
+    """Mostra toast agendado por notify(). Chamar no topo do app."""
+    msg = st.session_state.pop("_hw_toast", None)
+    if msg:
+        st.toast(msg["text"], icon=msg["icon"])

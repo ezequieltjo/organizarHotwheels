@@ -8,7 +8,7 @@ def _render_stats(cars: list, cor: str, msg_vazio: str) -> None:
     import pandas as pd
     import plotly.express as px
     if not cars:
-        st.info(msg_vazio)
+        st.info(msg_vazio, icon=":material/leaderboard:")
         return
     df = pd.DataFrame([{
         "marca": c.marca,

@@ -9,7 +9,7 @@ from models import Car
 from storage import insert_car, update_car, delete_car, set_reserva
 from camera_component import render_color_picker
 from color_sliders import render_color_sliders
-from ui.state import refresh
+from ui.state import notify, refresh
 from ui.photos import resolve_photo, save_photo
 from ui.cards import render_car_list
 
@@ -40,8 +40,7 @@ def act_excluir(car) -> None:
     st.session_state.pop("_pending_picker_color", None)
     delete_car(car.id)
     refresh()
-    st.session_state._car_toast_msg = "Carro removido!"
-    st.session_state.car_toast = "delete"
+    notify("Carro removido!", icon="🗑️")
     st.rerun()
 
 
@@ -50,8 +49,7 @@ def act_promover(car) -> None:
     car.lista_desejos = False
     update_car(car)
     refresh()
-    st.session_state._car_toast_msg = "Adicionado à coleção!"
-    st.session_state.car_toast = True
+    notify("Adicionado à coleção!")
     st.rerun()
 
 
@@ -221,8 +219,7 @@ def _render_editar(editing_car) -> None:
                 st.session_state.pop("_cpicker_picker_edit", None)
                 del st.session_state.editing_car_id
                 refresh()
-                st.session_state._car_toast_msg = "Carro editado com sucesso!"
-                st.session_state.car_toast = True
+                notify("Carro editado com sucesso!")
                 st.rerun()
     render_color_sliders(_cor_key)
     with st.container(border=True):
@@ -318,8 +315,7 @@ def _render_adicionar() -> None:
                 st.session_state.pop("_cpicker_picker_add", None)
                 st.session_state.pop("cor_picker_add", None)
                 refresh()
-                st.session_state._car_toast_msg = "Carro adicionado com sucesso!"
-                st.session_state.car_toast = True
+                notify("Carro adicionado com sucesso!")
                 st.rerun()
     render_color_sliders("cor_picker_add")
     with st.container(border=True):

@@ -31,18 +31,22 @@ _HW_PAIR_SEL = ("[data-testid='stHorizontalBlock']"
 
 def inject_base_css() -> None:
     st.markdown("<style>"
-                # header nativo oculto; conteúdo sobe
-                "header[data-testid='stHeader']{display:none!important}"
-                "div[data-testid='stMainBlockContainer']{padding-top:1rem!important}"
+                # header transparente (mantém botões de sidebar/tema acessíveis)
+                "header[data-testid='stHeader']{background:transparent}"
+                "div[data-testid='stMainBlockContainer']{padding-top:2.75rem!important}"
                 # logo (conteúdo do usuário na sidebar) acima da navegação
                 "[data-testid='stSidebarContent']{display:flex;flex-direction:column}"
                 "[data-testid='stSidebarContent'] [data-testid='stSidebarNav']{order:3}"
                 "[data-testid='stSidebarContent'] [data-testid='stSidebarUserContent']{order:2}"
                 "[data-testid='stFormSubmitButton'] button{white-space:nowrap}"
+                ".hw-badges{display:block;margin:.1rem 0;line-height:1.7}"
                 ".hw-badge{display:inline-block;font-size:.62rem;font-weight:600;letter-spacing:.03em;"
-                "text-transform:uppercase;padding:.1rem .45rem;border-radius:99px;"
-                "background:rgba(0,0,0,.08);color:inherit;vertical-align:middle;margin-left:.25rem}"
-                ".hw-badge-fav{background:#f9d908;color:#3a3000}"
+                "text-transform:uppercase;padding:.12rem .5rem;border-radius:99px;"
+                "vertical-align:middle;margin-right:.25rem;border:1px solid transparent}"
+                ".hw-badge-fav{background:#f9d908;color:#3a3000;border-color:#e5c800}"
+                ".hw-badge-arq{background:#e3f0fd;color:#1a4f8b;border-color:#b5d6f5}"
+                ".hw-badge-custom{background:#f3e8fd;color:#6b21a8;border-color:#ddb8fa}"
+                ".hw-badge-rep{background:#fdeeda;color:#92400e;border-color:#f5c98a}"
                 "[data-testid='stNumberInputStepUp'] > *,[data-testid='stNumberInputStepDown'] > *{display:none}"
                 "[data-testid='stNumberInputStepUp']::after{content:'+';font-size:1rem;font-weight:600;line-height:1}"
                 "[data-testid='stNumberInputStepDown']::after{content:'-';font-size:1rem;font-weight:600;line-height:1}"

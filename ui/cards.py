@@ -69,17 +69,19 @@ def zoom_btn(car, prefix: str) -> None:
 
 
 def badges_html(car, repetidos: set) -> str:
-    """Pills discretas: ★ favorito · arquivado · custom · repetido."""
+    """Pills coloridas: ★ favorito · arquivado · custom · repetido."""
     pills = []
     if car.favorito:
         pills.append('<span class="hw-badge hw-badge-fav" title="Favorito">★</span>')
     if car.reserva:
-        pills.append('<span class="hw-badge" title="Arquivado (não posicionado)">arquivado</span>')
+        pills.append('<span class="hw-badge hw-badge-arq" title="Arquivado (não posicionado)">arquivado</span>')
     if car.customizada:
-        pills.append('<span class="hw-badge" title="Customizado">custom</span>')
+        pills.append('<span class="hw-badge hw-badge-custom" title="Customizado">custom</span>')
     if car.modelo in repetidos:
-        pills.append('<span class="hw-badge" title="Modelo repetido na coleção">repetido</span>')
-    return "".join(pills)
+        pills.append('<span class="hw-badge hw-badge-rep" title="Modelo repetido na coleção">repetido</span>')
+    if not pills:
+        return ""
+    return '<span class="hw-badges">' + "".join(pills) + "</span>"
 
 
 def render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
@@ -87,8 +89,9 @@ def render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
     st.markdown(foto_html(car), unsafe_allow_html=True)
     zoom_btn(car, "card")
     st.markdown(
-        f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b> {badges_html(car, repetidos)}<br>"
-        f"<small>{car.fabricante or '?'} | {car.serie_tipo}</small></div>",
+        f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b>"
+        f"{badges_html(car, repetidos)}"
+        f"<div style='font-size:.85rem'>{car.fabricante or '?'} | {car.serie_tipo}</div></div>",
         unsafe_allow_html=True)
     btns = st.columns(len(actions))
     for i, (btn_col, (icon, help_text, fn)) in enumerate(zip(btns, actions)):
@@ -125,8 +128,8 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
                                 unsafe_allow_html=True)
             with col2:
                 st.markdown(
-                    f"**{car.marca} {car.modelo}** {badges_html(car, repetidos)} — "
-                    f"{car.fabricante or '?'} | {car.serie_tipo}",
+                    f"**{car.marca} {car.modelo}**{badges_html(car, repetidos)}"
+                    f"<div style='font-size:.85rem'>{car.fabricante or '?'} | {car.serie_tipo}</div>",
                     unsafe_allow_html=True)
             with col3:
                 btns = st.columns(len(actions))

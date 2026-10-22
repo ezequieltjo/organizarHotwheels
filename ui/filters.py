@@ -75,39 +75,61 @@ def sort_cars(cars: list, ordem: str) -> list:
     return cars
 
 
+def _ativos(prefix: str) -> int:
+    """Quantidade de filtros (além da busca) diferentes do padrão."""
+    defaults = {"filtro_marca": "Todas", "filtro_serie": "Todas",
+                "filtro_fabricante": "Todos", "filtro_status": "Todos"}
+    return sum(1 for k, d in defaults.items()
+               if _um(st.session_state.get(f"{k}_{prefix}", d), d) != d)
+
+
+def _um(sel, default="Todos"):
+    """st.pills pode devolver str ou list — normaliza para um valor."""
+    if isinstance(sel, list):
+        return sel[0] if sel else default
+    return sel or default
+
+
 def list_toolbar(source: list, prefix: str) -> list:
-    """Busca + filtros + ordenação. Retorna cars filtrados e ordenados."""
+    """Busca + filtros + ordenação compactos. Retorna cars filtrados e ordenados."""
     n_exibidos = len(filter_cars(source,
                                   st.session_state.get(f"busca_{prefix}", ""),
-                                  st.session_state.get(f"filtro_marca_{prefix}", "Todas"),
-                                  st.session_state.get(f"filtro_serie_{prefix}", "Todas"),
-                                  st.session_state.get(f"filtro_status_{prefix}", "Todos"),
-                                  st.session_state.get(f"filtro_fabricante_{prefix}", "Todos")))
-    sb_col, cnt_col = st.columns([4, 1])
-    with sb_col:
-        busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...", key=f"busca_{prefix}")
-    with cnt_col:
-        cc1, cc2 = st.columns([1, 1.1], gap="small")
-        with cc1:
-            st.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+                                  _um(st.session_state.get(f"filtro_marca_{prefix}", "Todas"), "Todas"),
+                                  _um(st.session_state.get(f"filtro_serie_{prefix}", "Todas"), "Todas"),
+                                  _um(st.session_state.get(f"filtro_status_{prefix}", "Todos")),
+                                  _um(st.session_state.get(f"filtro_fabricante_{prefix}", "Todos"), "Todos")))
+    row1, row2 = st.columns([4, 1])
+    with row1:
+        busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...",
+                              key=f"busca_{prefix}", label_visibility="collapsed")
+    with row2:
+        c_res, c_cnt = st.columns([1, 1.6], gap="small")
+        with c_res:
             st.button("↺", help="Limpar busca e filtros", key=f"reset_filtros_{prefix}",
-                      on_click=reset_filtros, args=(prefix,))
-        with cc2:
-            st.markdown(
-                f"<div style='margin-top:2.05rem;margin-left:-0.6rem;font-size:1.25rem'>"
-                f"<b>{n_exibidos}</b> exibidos</div>",
-                unsafe_allow_html=True)
+                      on_click=reset_filtros, args=(prefix,), width="stretch")
+        with c_cnt:
+            st.markdown(f"<div style='margin-top:.45rem;font-size:1.05rem;white-space:nowrap'>"
+                        f"<b>{n_exibidos}</b> exibidos</div>",
+                        unsafe_allow_html=True)
 
-    fc1, fc2, fc3, fc4, fc5 = st.columns([1.3, 1, 1.1, 1, 1])
-    with fc1:
-        ordem = st.selectbox("Ordenar por", ORDEM_OPTS, key=f"ordem_{prefix}")
-    with fc2:
-        filtro_marca = st.selectbox("Filtrar marca", ["Todas"] + sorted(set(c.marca for c in source if c.marca)), key=f"filtro_marca_{prefix}")
-    with fc3:
-        filtro_serie = st.selectbox("Filtrar série", ["Todas"] + sorted(set(c.serie_tipo for c in source if c.serie_tipo)), key=f"filtro_serie_{prefix}")
-    with fc4:
-        filtro_fabricante = st.selectbox("Fabricante", ["Todos"] + sorted(set(c.fabricante for c in source if c.fabricante)), key=f"filtro_fabricante_{prefix}")
-    with fc5:
-        filtro_status = st.selectbox("Status", STATUS_FILTRO_OPTS, key=f"filtro_status_{prefix}")
-    cars = sort_cars(filter_cars(source, busca, filtro_marca, filtro_serie, filtro_status, filtro_fabricante), ordem)
+    row3a, row3b = st.columns([2, 1])
+    with row3a:
+        ordem = st.selectbox("Ordenar por", ORDEM_OPTS, key=f"ordem_{prefix}",
+                             label_visibility="collapsed")
+    with row3b:
+        n = _ativos(prefix)
+        rotulo = f":material/tune: Filtros ({n})" if n else ":material/tune: Filtros"
+        with st.popover(rotulo, use_container_width=True):
+            filtro_marca = st.selectbox("Marca", ["Todas"] + sorted(set(c.marca for c in source if c.marca)),
+                                        key=f"filtro_marca_{prefix}")
+            filtro_serie = st.selectbox("Série", ["Todas"] + sorted(set(c.serie_tipo for c in source if c.serie_tipo)),
+                                        key=f"filtro_serie_{prefix}")
+            filtro_fabricante = st.selectbox("Fabricante", ["Todos"] + sorted(set(c.fabricante for c in source if c.fabricante)),
+                                             key=f"filtro_fabricante_{prefix}")
+            filtro_status = _um(st.pills("Status", STATUS_FILTRO_OPTS,
+                                         key=f"filtro_status_{prefix}",
+                                         selection_mode="single"))
+
+    cars = sort_cars(filter_cars(source, busca, filtro_marca, filtro_serie,
+                                 filtro_status, filtro_fabricante), ordem)
     return cars

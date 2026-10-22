@@ -1,6 +1,16 @@
 [theme]
+base = "light"
+primaryColor = "#ea1c2c"
+font = "Barlow"
+
+[theme.light]
+backgroundColor = "#faf9f7"
+secondaryBackgroundColor = "#f0ede8"
+textColor = "#201d1a"
+
+[theme.dark]
 base = "dark"
 primaryColor = "#ea1c2c"
-backgroundColor = "#000000"
-secondaryBackgroundColor = "#1a1a1a"
-textColor = "#ffffff"
+backgroundColor = "#17151a"
+secondaryBackgroundColor = "#211e24"
+textColor = "#f2efe9"

@@ -43,11 +43,11 @@ def inject_base_css() -> None:
                 ".hw-badge{display:inline-block;font-size:.62rem;font-weight:600;letter-spacing:.03em;"
                 "text-transform:uppercase;padding:.12rem .5rem;border-radius:99px;"
                 "vertical-align:middle;margin-right:.25rem;border:1px solid transparent}"
-                # paleta das estatisticas: amarelo desejos, laranja arquivados, vermelho colecao
+                # paleta dos graficos: laranja=arquivado, vermelho=custom, amarelo=repetido
                 ".hw-badge-fav{background:#f9d908;color:#3a3000;border-color:#e5c800}"
-                ".hw-badge-arq{background:#fae3d8;color:#a8431a;border-color:#f0b899}"
-                ".hw-badge-custom{background:#ea1c2c;color:#fff;border-color:#c91522}"
-                ".hw-badge-rep{background:#fff5f5;color:#ea1c2c;border-color:#ea1c2c}"
+                ".hw-badge-arq{background:#fae3d8;color:#a8431a;border-color:#e46124}"
+                ".hw-badge-custom{background:#fce3e4;color:#c91522;border-color:#ea1c2c}"
+                ".hw-badge-rep{background:#fdf6c8;color:#8a7500;border-color:#e5c800}"
                 "[data-testid='stNumberInputStepUp'] > *,[data-testid='stNumberInputStepDown'] > *{display:none}"
                 "[data-testid='stNumberInputStepUp']::after{content:'+';font-size:1rem;font-weight:600;line-height:1}"
                 "[data-testid='stNumberInputStepDown']::after{content:'-';font-size:1rem;font-weight:600;line-height:1}"

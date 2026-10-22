@@ -11,12 +11,12 @@ def wish_card(car) -> None:
     st.markdown(foto_html(car), unsafe_allow_html=True)
     zoom_btn(car, "wish")
     st.markdown(
-        f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b></div>",
+        f"<div style='text-align:center;min-height:2.75rem;display:flex;align-items:flex-start;justify-content:center'><b>{car.marca} {car.modelo}</b></div>",
         unsafe_allow_html=True)
     b1, b2 = st.columns(2)
-    if b1.button("", icon=":material/add_circle", key=f"wish_add_{car.id}", help="Adicionar à coleção", width="stretch"):
+    if b1.button("", icon=":material/add_circle:", key=f"wish_add_{car.id}", help="Adicionar à coleção", width="stretch"):
         act_promover(car)
-    if b2.button("", icon=":material/delete", key=f"wish_del_{car.id}", help="Remover da lista de desejos", width="stretch"):
+    if b2.button("", icon=":material/delete:", key=f"wish_del_{car.id}", help="Remover da lista de desejos", width="stretch"):
         act_excluir(car)
 
 

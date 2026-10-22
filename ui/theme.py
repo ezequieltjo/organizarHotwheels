@@ -10,19 +10,13 @@ LOGO_VERMELHO = "#ea1c2c"
 LOGO_AMARELO = "#f9d908"
 LARANJA = "#e46124"
 
-# Altura da faixa do topo ocupada pela logo. Ajuste este único valor.
-LOGO_HEADER_HEIGHT = "9rem"
-
-
 def render_logo() -> None:
-    """Logo centralizada no topo."""
+    """Logo no topo da sidebar."""
     _logo_path = PHOTOS_DIR / "logo.png"
     if _logo_path.is_file():
         _logo_b64 = base64.b64encode(_logo_path.read_bytes()).decode()
-        st.markdown(
-            f"<div style='text-align:center'>"
-            f"<img src='data:image/png;base64,{_logo_b64}' "
-            f"style='height:{LOGO_HEADER_HEIGHT};width:auto'></div>",
+        st.sidebar.markdown(
+            f"<img src='data:image/png;base64,{_logo_b64}' style='width:100%'>",
             unsafe_allow_html=True)
 
 
@@ -36,7 +30,12 @@ _HW_PAIR_SEL = ("[data-testid='stHorizontalBlock']"
 
 
 def inject_base_css() -> None:
-    st.markdown("<style>[data-testid='stTabs'] button{font-size:1.25rem}[data-testid='stFormSubmitButton'] button{white-space:nowrap}"
+    st.markdown("<style>"
+                # logo (conteúdo do usuário na sidebar) acima da navegação
+                "[data-testid='stSidebarContent']{display:flex;flex-direction:column}"
+                "[data-testid='stSidebarContent'] [data-testid='stSidebarNav']{order:3}"
+                "[data-testid='stSidebarContent'] [data-testid='stSidebarUserContent']{order:2}"
+                "[data-testid='stFormSubmitButton'] button{white-space:nowrap}"
                 "[data-testid='stNumberInputStepUp'] > *,[data-testid='stNumberInputStepDown'] > *{display:none}"
                 "[data-testid='stNumberInputStepUp']::after{content:'+';font-size:1rem;font-weight:600;line-height:1}"
                 "[data-testid='stNumberInputStepDown']::after{content:'-';font-size:1rem;font-weight:600;line-height:1}"

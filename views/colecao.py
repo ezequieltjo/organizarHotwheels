@@ -56,11 +56,12 @@ def act_promover(car) -> None:
 
 
 COLECAO_ACTIONS = [
-    ("⭐", None, act_favorito),
-    (lambda c: "📦" if c.reserva else "📭",
-     "Marcar/desmarcar arquivado (não posicionar)", act_reserva),
-    ("✏️", None, act_editar),
-    ("🗑️", None, act_excluir),
+    (lambda c: ":material/star:" if c.favorito else ":material/star_border:",
+     "Favoritar/desfavoritar", act_favorito),
+    (lambda c: ":material/inventory_2:" if c.reserva else ":material/inventory:",
+     "Arquivar/desarquivar (não posiciona)", act_reserva),
+    (lambda c: ":material/edit:", "Editar", act_editar),
+    (lambda c: ":material/delete:", "Excluir", act_excluir),
 ]
 
 

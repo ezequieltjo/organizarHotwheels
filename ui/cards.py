@@ -68,23 +68,33 @@ def zoom_btn(car, prefix: str) -> None:
               on_click=act_zoom, args=(car,), type="primary")
 
 
+def badges_html(car, repetidos: set) -> str:
+    """Pills discretas: ★ favorito · arquivado · custom · repetido."""
+    pills = []
+    if car.favorito:
+        pills.append('<span class="hw-badge hw-badge-fav" title="Favorito">★</span>')
+    if car.reserva:
+        pills.append('<span class="hw-badge" title="Arquivado (não posicionado)">arquivado</span>')
+    if car.customizada:
+        pills.append('<span class="hw-badge" title="Customizado">custom</span>')
+    if car.modelo in repetidos:
+        pills.append('<span class="hw-badge" title="Modelo repetido na coleção">repetido</span>')
+    return "".join(pills)
+
+
 def render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
     """Card vertical p/ mobile: foto grande em cima, texto central, botões em linha."""
     st.markdown(foto_html(car), unsafe_allow_html=True)
     zoom_btn(car, "card")
-    fav = "★ " if car.favorito else ""
-    reserva_marker = "📦 " if car.reserva else ""
-    customizada_marker = "🖌️ " if car.customizada else ""
-    repetido_marker = "🔁 " if car.modelo in repetidos else ""
     st.markdown(
-        f"<div style='text-align:center'><b>{reserva_marker}{customizada_marker}{repetido_marker}"
-        f"{car.marca} {fav}{car.modelo}</b><br>"
+        f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b> {badges_html(car, repetidos)}<br>"
         f"<small>{car.fabricante or '?'} | {car.serie_tipo}</small></div>",
         unsafe_allow_html=True)
     btns = st.columns(len(actions))
-    for i, (btn_col, (emoji, help_text, fn)) in enumerate(zip(btns, actions)):
-        label = emoji(car) if callable(emoji) else emoji
-        if btn_col.button(label, key=f"act_{prefix}_{i}_{car.id}", help=help_text):
+    for i, (btn_col, (icon, help_text, fn)) in enumerate(zip(btns, actions)):
+        ic = icon(car) if callable(icon) else icon
+        if btn_col.button("", icon=ic, key=f"act_{prefix}_{i}_{car.id}", help=help_text,
+                          width="stretch"):
             fn(car)
 
 
@@ -114,14 +124,14 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
                     st.markdown(f"<div style='width:60px;height:45px;background:{car.cor_hex};border-radius:4px'></div>",
                                 unsafe_allow_html=True)
             with col2:
-                fav = "★ " if car.favorito else ""
-                reserva_marker = "📦 " if car.reserva else ""
-                customizada_marker = "🖌️ " if car.customizada else ""
-                repetido_marker = "🔁 " if car.modelo in repetidos else ""
-                st.write(f"**{reserva_marker}{customizada_marker}{repetido_marker}{car.marca} {fav}{car.modelo}** — {car.fabricante or '?'} | {car.serie_tipo}")
+                st.markdown(
+                    f"**{car.marca} {car.modelo}** {badges_html(car, repetidos)} — "
+                    f"{car.fabricante or '?'} | {car.serie_tipo}",
+                    unsafe_allow_html=True)
             with col3:
                 btns = st.columns(len(actions))
-                for i, (btn_col, (emoji, help_text, fn)) in enumerate(zip(btns, actions)):
-                    label = emoji(car) if callable(emoji) else emoji
-                    if btn_col.button(label, key=f"act_{prefix}_{i}_{car.id}", help=help_text):
+                for i, (btn_col, (icon, help_text, fn)) in enumerate(zip(btns, actions)):
+                    ic = icon(car) if callable(icon) else icon
+                    if btn_col.button("", icon=ic, key=f"act_{prefix}_{i}_{car.id}", help=help_text,
+                                      width="stretch"):
                         fn(car)

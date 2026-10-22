@@ -89,9 +89,9 @@ def render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
     st.markdown(foto_html(car), unsafe_allow_html=True)
     zoom_btn(car, "card")
     st.markdown(
-        f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b>"
-        f"{badges_html(car, repetidos)}"
-        f"<div style='font-size:.85rem'>{car.fabricante or '?'} | {car.serie_tipo}</div></div>",
+        f"<div style='text-align:center'><b>{car.marca} {car.modelo}</b> — "
+        f"{car.fabricante or '?'} | {car.serie_tipo}"
+        f"{badges_html(car, repetidos)}</div>",
         unsafe_allow_html=True)
     btns = st.columns(len(actions))
     for i, (btn_col, (icon, help_text, fn)) in enumerate(zip(btns, actions)):
@@ -128,8 +128,8 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
                                 unsafe_allow_html=True)
             with col2:
                 st.markdown(
-                    f"**{car.marca} {car.modelo}**{badges_html(car, repetidos)}"
-                    f"<div style='font-size:.85rem'>{car.fabricante or '?'} | {car.serie_tipo}</div>",
+                    f"**{car.marca} {car.modelo}** — {car.fabricante or '?'} | "
+                    f"{car.serie_tipo}{badges_html(car, repetidos)}",
                     unsafe_allow_html=True)
             with col3:
                 btns = st.columns(len(actions))

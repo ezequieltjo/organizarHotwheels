@@ -119,7 +119,7 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
             with col1:
                 if resolve_photo(car.foto_path) is not None:
                     st.markdown(
-                        f"<div data-hw-card data-hw-thumb style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:60px;min-height:45px;height:100%;box-sizing:border-box'>"
+                        f"<div data-hw-card data-hw-thumb style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;width:90px;min-height:60px;height:100%;box-sizing:border-box'>"
                         f"<img src='data:image/jpeg;base64,{img_thumb_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",
                         unsafe_allow_html=True)
                     zoom_btn(car, "row")

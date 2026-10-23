@@ -76,12 +76,12 @@ def inject_base_css() -> None:
                 # thumb da lista desktop: maior item da linha, cobre a altura
                 # (flex estica coluna -> bloco -> container -> markdown -> thumb)
                 "[data-testid='stColumn']:has([data-hw-thumb])"
-                " [data-testid='stVerticalBlock']{display:flex!important;flex-direction:column!important}"
+                " [data-testid='stVerticalBlock']{display:flex!important;flex-direction:column!important;width:100%!important}"
                 "[data-testid='stColumn']:has([data-hw-thumb])"
-                " [data-testid='stElementContainer']{display:flex!important;flex-direction:column!important}"
+                " [data-testid='stElementContainer']{display:flex!important;flex-direction:column!important;width:100%!important}"
                 "[data-testid='stColumn']:has([data-hw-thumb])"
-                " [data-testid='stMarkdownContainer']{display:flex!important;flex-direction:column!important;flex:1!important}"
-                "[data-hw-thumb]{height:100%!important;position:relative;min-height:60px}"
+                " [data-testid='stMarkdownContainer']{display:flex!important;flex-direction:column!important;flex:1!important;width:100%!important}"
+                "[data-hw-thumb]{height:100%!important;width:100%!important;max-width:90px;position:relative;min-height:60px}"
                 "[data-hw-thumb] img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}"
                 # zoom (botão invisível) cobre o thumb inteiro
                 "[data-testid='stColumn']:has([data-hw-thumb])"

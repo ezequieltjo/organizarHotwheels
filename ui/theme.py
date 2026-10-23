@@ -73,8 +73,19 @@ def inject_base_css() -> None:
                 "[data-testid='stColumn']:has([data-hw-card])"
                 ">[data-testid='stVerticalBlock']>[data-testid='stElementContainer']"
                 ":has(button[kind='primary']){position:static}"
-                # thumb 60x45 fixo (lista desktop): botão do tamanho do thumb
+                # thumb da lista desktop cobre a altura da linha (com ou sem tags):
+                # estica a cadeia coluna -> bloco -> container -> markdown do thumb
+                "[data-testid='stColumn']:has([data-hw-thumb])"
+                ">[data-testid='stVerticalBlock']{height:100%!important}"
+                "[data-testid='stColumn']:has([data-hw-thumb])"
+                ">[data-testid='stVerticalBlock']>[data-testid='stElementContainer']:first-child"
+                "{height:100%!important}"
+                "[data-testid='stColumn']:has([data-hw-thumb])"
+                " [data-testid='stMarkdownContainer']{height:100%!important}"
+                "[data-hw-thumb]{height:100%!important;position:relative;min-height:45px}"
+                "[data-hw-thumb] img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}"
+                # zoom (botão invisível) cobre o thumb inteiro
                 "[data-testid='stColumn']:has([data-hw-thumb])"
                 " button[kind='primary']:not([data-testid='stForm'] *)"
-                "{width:60px;height:45px;aspect-ratio:auto}"
+                "{width:100%;height:100%;aspect-ratio:auto}"
                 "</style>", unsafe_allow_html=True)

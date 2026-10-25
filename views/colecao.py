@@ -81,7 +81,7 @@ def render() -> None:
             del st.session_state.editing_car_id
             editing_id = None
 
-    c1, c2 = st.columns([3, 2])
+    c1, c2 = st.columns([3, 2], gap="large")
     # Lista (c1) ANTES do form (c2): o submit do form aborta a run via st.rerun();
     # se a toolbar de filtros ainda não registrou os widgets, Streamlit descarta
     # os valores e os filtros resetam. Renderizando c1 primeiro, os widgets já
@@ -235,7 +235,7 @@ def _render_editar(editing_car) -> None:
 
 
 def _render_adicionar() -> None:
-    st.subheader("Adicionar carro")
+    st.subheader("Adicionar miniatura")
     existing_marcas = sorted(set(c.marca for c in st.session_state.cars if c.marca))
     existing_fabricantes = sorted(set(c.fabricante for c in st.session_state.cars if c.fabricante))
     existing_series = sorted(set(c.serie_tipo for c in st.session_state.cars if c.serie_tipo))

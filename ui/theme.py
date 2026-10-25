@@ -83,8 +83,28 @@ def inject_base_css() -> None:
                 " [data-testid='stMarkdownContainer']{display:flex!important;flex-direction:column!important;flex:1!important;width:100%!important}"
                 "[data-hw-thumb]{height:100%!important;width:100%!important;max-width:90px;position:relative;min-height:60px}"
                 "[data-hw-thumb] img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}"
+                # botões de ação (favoritar/arquivar/editar/excluir): quadrados,
+                # cantos arredondados, ícone centralizado; colunas-irmãs flex:1
+                "[data-testid='stHorizontalBlock']:has(>[data-testid='stColumn'] [data-hw-thumb])"
+                ">[data-testid='stColumn']:last-child [data-testid='stHorizontalBlock']"
+                ">[data-testid='stColumn'],"
+                "[data-testid='stColumn']:has([data-hw-card]) [data-testid='stHorizontalBlock']"
+                ">[data-testid='stColumn']"
+                "{flex:1 1 0!important;min-width:0!important}"
+                "[data-testid='stHorizontalBlock']:has(>[data-testid='stColumn'] [data-hw-thumb])"
+                ">[data-testid='stColumn']:last-child button[data-testid=stBaseButton-secondary],"
+                "[data-testid='stColumn']:has([data-hw-card]) [data-testid='stHorizontalBlock']"
+                " button[data-testid=stBaseButton-secondary]"
+                "{width:40px!important;height:40px!important;min-width:40px!important;"
+                "border-radius:10px!important;padding:0!important;margin:0 auto!important;"
+                "display:flex!important;justify-content:center!important;align-items:center!important}"
                 # zoom (botão invisível) cobre o thumb inteiro
                 "[data-testid='stColumn']:has([data-hw-thumb])"
                 " button[kind='primary']:not([data-testid='stForm'] *)"
                 "{width:100%;height:100%;aspect-ratio:auto}"
+                ""
+                # grade mobile (pares): botões de ação quadrados também aqui
+                f"{_HW_PAIR_SEL} [data-testid='stHorizontalBlock'] button"
+                "{width:40px!important;height:40px!important;min-width:40px!important;"
+                "border-radius:10px!important;padding:0!important;margin:0 auto!important}"
                 "</style>", unsafe_allow_html=True)

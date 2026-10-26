@@ -115,7 +115,7 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
         return
     for car in cars:
         with st.container():
-            col1, col2, col3 = st.columns([1.6, 6, 2.9])
+            col1, col2, col3 = st.columns([1.3, 5.5, 3.2])
             with col1:
                 if resolve_photo(car.foto_path) is not None:
                     st.markdown(

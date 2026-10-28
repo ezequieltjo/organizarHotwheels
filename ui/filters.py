@@ -98,25 +98,16 @@ def list_toolbar(source: list, prefix: str) -> list:
                                   _um(st.session_state.get(f"filtro_serie_{prefix}", "Todas"), "Todas"),
                                   _um(st.session_state.get(f"filtro_status_{prefix}", "Todos")),
                                   _um(st.session_state.get(f"filtro_fabricante_{prefix}", "Todos"), "Todos")))
-    row1, row2 = st.columns([4, 1])
-    with row1:
+    # linha única: busca | ordenar | filtros | reset | contagem
+    # (filtros com o mínimo p/ o rótulo "Filtros (n)"; sobra vai p/ a busca)
+    c_busca, c_ordem, c_filtro, c_res, c_cnt = st.columns([2.5, 1.8, 1.15, 0.4, 1.15])
+    with c_busca:
         busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...",
                               key=f"busca_{prefix}", label_visibility="collapsed")
-    with row2:
-        c_res, c_cnt = st.columns([1, 1.6], gap="small")
-        with c_res:
-            st.button("↺", help="Limpar busca e filtros", key=f"reset_filtros_{prefix}",
-                      on_click=reset_filtros, args=(prefix,), width="stretch")
-        with c_cnt:
-            st.markdown(f"<div style='margin-top:.45rem;font-size:1.05rem;white-space:nowrap'>"
-                        f"<b>{n_exibidos}</b> exibidos</div>",
-                        unsafe_allow_html=True)
-
-    row3a, row3b = st.columns([2, 1])
-    with row3a:
+    with c_ordem:
         ordem = st.selectbox("Ordenar por", ORDEM_OPTS, key=f"ordem_{prefix}",
                              label_visibility="collapsed")
-    with row3b:
+    with c_filtro:
         n = _ativos(prefix)
         rotulo = f":material/tune: Filtros ({n})" if n else ":material/tune: Filtros"
         with st.popover(rotulo, use_container_width=True):
@@ -126,9 +117,18 @@ def list_toolbar(source: list, prefix: str) -> list:
                                         key=f"filtro_serie_{prefix}")
             filtro_fabricante = st.selectbox("Fabricante", ["Todos"] + sorted(set(c.fabricante for c in source if c.fabricante)),
                                              key=f"filtro_fabricante_{prefix}")
+            # width fixo: sem ele o popover cresce para caber tudo em 1 linha;
+            # ~330px divide os 6 status em 2 linhas (3+3) com pills no mínimo
             filtro_status = _um(st.pills("Status", STATUS_FILTRO_OPTS,
                                          key=f"filtro_status_{prefix}",
-                                         selection_mode="single"))
+                                         selection_mode="single", width=330))
+    with c_res:
+        st.button("↺", help="Limpar busca e filtros", key=f"reset_filtros_{prefix}",
+                  on_click=reset_filtros, args=(prefix,), width="stretch")
+    with c_cnt:
+        st.markdown(f"<div style='margin-top:.45rem;font-size:1.05rem;white-space:nowrap'>"
+                    f"<b>{n_exibidos}</b> exibidos</div>",
+                    unsafe_allow_html=True)
 
     cars = sort_cars(filter_cars(source, busca, filtro_marca, filtro_serie,
                                  filtro_status, filtro_fabricante), ordem)

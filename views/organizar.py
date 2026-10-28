@@ -6,11 +6,12 @@ from models import GradientConfig
 from storage import clear_positions, apply_positions, insert_car
 from organizers import (organize_rainbow, organize_gradient, organize_by_brand,
                         organize_by_fabricante, organize_by_year, organize_random,
-                        organize_favorites_first, total_slots)
+                        total_slots)
 from ui.photos import PHOTOS_DIR
 from ui.state import refresh
 from visualizer import render_grid
 
+# favoritos dormente: organize_favorites_first segue em organizers.py, fora da lista
 ORGANIZERS = {
     "Arco-íris (por cor)": organize_rainbow,
     "Degradê (moldura)": organize_gradient,
@@ -18,7 +19,6 @@ ORGANIZERS = {
     "Por fabricante (miniatura)": organize_by_fabricante,
     "Por ano": organize_by_year,
     "Aleatório": organize_random,
-    "Favoritos na frente": organize_favorites_first,
 }
 
 

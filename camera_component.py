@@ -28,7 +28,7 @@ def extract_colors(photo_bytes: bytes, n: int = 8) -> list[str]:
 
 
 def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "color_picker", cor_key: str = None) -> str | None:
-    """Show extracted colors from photo as clickable swatches (2 linhas x 4)."""
+    """Amostras de cores da foto (2 linhas x 4); clicar na cor aplica na hora."""
     state_key = f"_cpicker_{key}"
 
     colors = extract_colors(photo_bytes)
@@ -42,11 +42,14 @@ def render_color_picker(photo_bytes: bytes, bridge_key: str = None, key: str = "
         for i, hex_c in enumerate(colors[row * 4:(row + 1) * 4]):
             with cols[i]:
                 st.markdown(
-                    f'<div style="width:100%;height:40px;background:{hex_c};'
+                    f'<div data-hw-swatch style="width:100%;height:40px;background:{hex_c};'
                     f'border-radius:6px;border:2px solid #666"></div>',
                     unsafe_allow_html=True,
                 )
-                if st.button("Usar", key=f"_cpick_{key}_{row * 4 + i}", width="stretch"):
+                # botão invisível sobreposto à amostra (mesmo padrão do zoom da
+                # foto; ver regra :has([data-hw-swatch]) no inject_base_css);
+                # sem help — a tooltip flutuante intercepta o clique na amostra
+                if st.button("", key=f"_cpick_{key}_{row * 4 + i}", type="primary"):
                     st.session_state[state_key] = hex_c
                     if cor_key:
                         st.session_state[cor_key] = hex_c

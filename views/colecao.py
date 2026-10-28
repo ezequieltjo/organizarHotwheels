@@ -53,9 +53,9 @@ def act_promover(car) -> None:
     st.rerun()
 
 
+# favoritar fora da interface (reativar chamando act_favorito e adicionando
+# o botão de volta na lista abaixo); o campo favorito segue no modelo/banco
 COLECAO_ACTIONS = [
-    (lambda c: ":material/star:" if c.favorito else ":material/star_border:",
-     "Favoritar/desfavoritar", act_favorito),
     (lambda c: ":material/inventory_2:" if c.reserva else ":material/inventory:",
      "Arquivar/desarquivar (não posiciona)", act_reserva),
     (lambda c: ":material/edit:", "Editar", act_editar),
@@ -81,7 +81,9 @@ def render() -> None:
             del st.session_state.editing_car_id
             editing_id = None
 
-    c1, c2 = st.columns([3, 2], gap="large")
+    # lista 70% / form 30%: botões de ação encostados na borda direita da
+    # lista deixam o vão antes do form pequeno e dão mais largura à toolbar
+    c1, c2 = st.columns([7, 3], gap="small")
     # Lista (c1) ANTES do form (c2): o submit do form aborta a run via st.rerun();
     # se a toolbar de filtros ainda não registrou os widgets, Streamlit descarta
     # os valores e os filtros resetam. Renderizando c1 primeiro, os widgets já
@@ -164,16 +166,15 @@ def _render_editar(editing_car) -> None:
                             if editing_car.created_at else date.today())
             data_adicao = st.date_input("Data de adição à coleção", value=data_inicial,
                                         format="DD/MM/YYYY")
-        fc1, fc2, _ = st.columns(3)
+        fc1, fc2, _ = st.columns([1, 1.4, 0.6])
         with fc1:
-            reserva_edit = st.checkbox("Arquivado (não posicionar em expositor)", value=editing_car.reserva)
+            reserva_edit = st.checkbox("Arquivado", value=editing_car.reserva)
         with fc2:
             customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
-        _, btn_col, _ = st.columns([1, 1, 1])
-        with btn_col:
-            sb1, sb2 = st.columns(2)
-            save = sb1.form_submit_button("Salvar", type="primary", use_container_width=True)
-            cancel = sb2.form_submit_button("Cancelar", use_container_width=True)
+        # colunas centrais largas o bastante p/ "Salvar"/"Cancelar" sem cortar
+        _, sb1, sb2, _ = st.columns([0.8, 1, 1, 0.8])
+        save = sb1.form_submit_button("Salvar", type="primary", use_container_width=True)
+        cancel = sb2.form_submit_button("Cancelar", use_container_width=True)
         if cancel:
             st.session_state.pop("_pending_photo", None)
             st.session_state.pop("_pending_picker_color", None)
@@ -278,14 +279,16 @@ def _render_adicionar() -> None:
         l3c1, _ = st.columns(2)
         with l3c1:
             ano = st.number_input("Ano", min_value=1950, max_value=2030, value=2024)
-        fc1, fc2, fc3 = st.columns(3)
+        # proporções p/ "Arquivado" e "Customização" caberem sem quebrar no meio
+        fc1, fc2, fc3 = st.columns([1, 0.9, 1.25])
         with fc1:
-            reserva_add = st.checkbox("Arquivado (não posicionar em expositor)", value=False)
+            reserva_add = st.checkbox("Arquivado", value=False)
         with fc2:
-            desejo_add = st.checkbox("Lista de desejos (não adquirido ainda)", value=False)
+            desejo_add = st.checkbox("Lista de desejos", value=False)
         with fc3:
             customizada_add = st.checkbox("Customização", value=False)
-        _, add_col, _ = st.columns([2, 1, 2])
+        # coluna central larga o bastante p/ "Adicionar" sem cortar o texto
+        _, add_col, _ = st.columns([1, 1.2, 1])
         with add_col:
             add = st.form_submit_button("Adicionar", type="primary", use_container_width=True)
         if add:

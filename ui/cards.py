@@ -69,10 +69,8 @@ def zoom_btn(car, prefix: str) -> None:
 
 
 def badges_html(car, repetidos: set) -> str:
-    """Pills coloridas: ★ favorito · arquivado · custom · repetido."""
+    """Pills coloridas: arquivado · custom · repetido (★ favorito dormente)."""
     pills = []
-    if car.favorito:
-        pills.append('<span class="hw-badge hw-badge-fav" title="Favorito">★</span>')
     if car.reserva:
         pills.append('<span class="hw-badge hw-badge-arq" title="Arquivado (não posicionado)">arquivado</span>')
     if car.customizada:
@@ -115,7 +113,9 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
         return
     for car in cars:
         with st.container():
-            col1, col2, col3 = st.columns([1.3, 5.5, 3.2])
+            # ações na 3ª coluna estreita (só o necessário p/ 3 botões de 40px),
+            # alinhadas à direita pelo CSS e encostadas no formulário
+            col1, col2, col3 = st.columns([1.3, 5.5, 1.7])
             with col1:
                 if resolve_photo(car.foto_path) is not None:
                     st.markdown(

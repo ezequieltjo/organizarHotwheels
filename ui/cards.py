@@ -21,8 +21,8 @@ def foto_html(car) -> str:
         return (f"<div data-hw-card style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden'>"
                 f"<img src='data:image/jpeg;base64,{img_thumb_b64(car.foto_path)}' "
                 f"style='width:100%;aspect-ratio:4/3;object-fit:cover;display:block'></div>")
-    return (f"<div data-hw-card style='width:100%;aspect-ratio:4/3;background:{car.cor_hex};"
-            f"border-radius:4px'></div>")
+    return (f"<div data-hw-card style='border:3px solid {car.cor_hex};border-radius:6px;"
+            f"overflow:hidden;aspect-ratio:4/3;background:{car.cor_hex}'></div>")
 
 
 def act_zoom(car) -> None:
@@ -124,8 +124,15 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
                         unsafe_allow_html=True)
                     zoom_btn(car, "row")
                 else:
-                    st.markdown(f"<div style='width:60px;height:45px;background:{car.cor_hex};border-radius:4px'></div>",
-                                unsafe_allow_html=True)
+                    # margin-bottom replica o slot do botão de zoom (gap de 16px
+                    # do bloco vertical) — sem ela a linha fica mais baixa que
+                    # o quadrado de 60px e ele encosta no card seguinte
+                    st.markdown(
+                        f"<div data-hw-card data-hw-thumb style='border:3px solid {car.cor_hex};"
+                        f"border-radius:6px;overflow:hidden;box-sizing:border-box;"
+                        f"background:{car.cor_hex};min-height:60px;height:100%;"
+                        f"margin-bottom:1rem'></div>",
+                        unsafe_allow_html=True)
             with col2:
                 st.markdown(
                     f"**{car.marca} {car.modelo}** — {car.fabricante or '?'} | "

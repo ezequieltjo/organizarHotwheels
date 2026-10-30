@@ -23,7 +23,8 @@ def render_logo() -> None:
 # Grade mobile de cards (ver render_car_list): Streamlit empilha as colunas
 # <640px; este seletor casa só com linhas de pares — exatamente 2 colunas
 # (:nth-child(2) é a última) e cada uma com um card (data-hw-card, foto_html).
-# Desktop usa <div> de 60px sem o marcador; a grade de desejos tem 5 colunas.
+# Desktop tem 3 colunas na linha (nth-child(2) não é last-child) e a grade
+# de desejos tem 5 colunas — nenhum dos dois casa.
 _HW_PAIR_SEL = ("[data-testid='stHorizontalBlock']"
                 ":has(>[data-testid='stColumn']:first-child [data-hw-card])"
                 ":has(>[data-testid='stColumn']:nth-child(2):last-child [data-hw-card])")

@@ -13,3 +13,4 @@ __pycache__/
 
 # Thumbnails derivados (cache gerado em runtime)
 photos/thumbs/
+static/

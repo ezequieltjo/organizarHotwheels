@@ -4,7 +4,9 @@ import base64
 import streamlit as st
 
 from ui.filters import list_toolbar, nomes_repetidos
-from ui.photos import img_thumb_b64, resolve_photo
+from ui.photos import img_thumb_url, resolve_photo
+
+TAM_PAGINA = 60
 
 
 def is_mobile() -> bool:
@@ -16,10 +18,12 @@ def is_mobile() -> bool:
 def foto_html(car) -> str:
     """HTML da foto em 4:3 com borda na cor do carro; swatch da cor se sem foto.
 
-    data-hw-card marca o card para o JS do layout mobile (hw_pair_row_css)."""
-    if resolve_photo(car.foto_path) is not None:
+    data-hw-card marca o card para o JS do layout mobile (hw_pair_row_css).
+    Foto por URL estática com loading=lazy: o rerun só transmite o endereço."""
+    url = img_thumb_url(car.foto_path)
+    if url is not None:
         return (f"<div data-hw-card style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden'>"
-                f"<img src='data:image/jpeg;base64,{img_thumb_b64(car.foto_path)}' "
+                f"<img src='{url}' loading='lazy' "
                 f"style='width:100%;aspect-ratio:4/3;object-fit:cover;display:block'></div>")
     return (f"<div data-hw-card style='border:3px solid {car.cor_hex};border-radius:6px;"
             f"overflow:hidden;aspect-ratio:4/3;background:{car.cor_hex}'></div>")
@@ -99,11 +103,37 @@ def render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
             fn(car)
 
 
+def _paginar(prefix: str, total: int) -> int:
+    """Seletor de página acima da lista; reseta para 1 ao mudar busca/filtro/ordem.
+
+    Retorna a página atual (sempre <= nº de páginas)."""
+    chaves = ("busca", "filtro_marca", "filtro_serie", "filtro_fabricante",
+              "filtro_status", "ordem")
+    assinatura = tuple(st.session_state.get(f"{k}_{prefix}") for k in chaves)
+    n_paginas = max(1, -(-total // TAM_PAGINA))
+    if assinatura != st.session_state.get(f"_pag_sig_{prefix}"):
+        st.session_state[f"pagina_{prefix}"] = 1
+        st.session_state[f"_pag_sig_{prefix}"] = assinatura
+    pagina = min(st.session_state.get(f"pagina_{prefix}") or 1, n_paginas)
+    if n_paginas > 1:
+        st.session_state.setdefault(f"pagina_{prefix}", pagina)
+        st.segmented_control("Página", range(1, n_paginas + 1),
+                             key=f"pagina_{prefix}", label_visibility="collapsed")
+    return pagina
+
+
+@st.fragment
 def render_car_list(source: list, prefix: str, actions: list) -> None:
-    """Cards em linhas (desktop) ou grade 2 colunas (mobile). actions: (emoji|fn(car), help, fn(car))."""
+    """Cards em linhas (desktop) ou grade 2 colunas (mobile), paginados.
+
+    actions: (emoji|fn(car), help, fn(car)). Fragment: busca, filtros e página
+    rerunam só este bloco; as ações de linha chamam st.rerun() padrão
+    (scope='app') porque atualizam contagens do cabeçalho."""
     repetidos = nomes_repetidos(source)
     cars = list_toolbar(source, prefix)
     maybe_zoom()
+    pagina = _paginar(prefix, len(cars))
+    cars = cars[(pagina - 1) * TAM_PAGINA: pagina * TAM_PAGINA]
     if is_mobile():
         for i in range(0, len(cars), 2):
             cols = st.columns(2)
@@ -117,10 +147,11 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
             # alinhadas à direita pelo CSS e encostadas no formulário
             col1, col2, col3 = st.columns([1.3, 5.5, 1.7])
             with col1:
-                if resolve_photo(car.foto_path) is not None:
+                url = img_thumb_url(car.foto_path)
+                if url is not None:
                     st.markdown(
                         f"<div data-hw-card data-hw-thumb style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;min-height:60px;height:100%;box-sizing:border-box'>"
-                        f"<img src='data:image/jpeg;base64,{img_thumb_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",
+                        f"<img src='{url}' loading='lazy' style='width:100%;height:100%;object-fit:cover'></div>",
                         unsafe_allow_html=True)
                     zoom_btn(car, "row")
                 else:

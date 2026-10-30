@@ -11,6 +11,10 @@ from thumbs import ensure_thumb
 PHOTOS_DIR = Path(__file__).parent.parent / "photos"
 PHOTOS_DIR.mkdir(exist_ok=True)
 THUMBS_DIR = PHOTOS_DIR / "thumbs"
+# servido pelo Streamlit (server.enableStaticServing) em /app/static/...
+STATIC_DIR = PHOTOS_DIR.parent / "static"
+STATIC_THUMBS_DIR = STATIC_DIR / "thumbs"
+STATIC_THUMBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def resolve_photo(path: str) -> Path | None:
@@ -44,12 +48,16 @@ def img_b64(path) -> str:
     return base64.b64encode(resolved.read_bytes()).decode()
 
 
-def img_thumb_b64(path) -> str:
-    """Base64 do thumbnail (gera sob demanda). Cards usam isto, não a foto original."""
+def img_thumb_url(path) -> str | None:
+    """URL do thumbnail servido como arquivo estático (gera sob demanda).
+
+    Cards usam isto, não a foto original: o rerun transmite só o endereço e
+    o navegador cacheia a imagem entre reruns. None se não houver foto."""
     resolved = resolve_photo(str(path))
     if resolved is None:
-        raise FileNotFoundError(path)
-    return base64.b64encode(ensure_thumb(resolved, THUMBS_DIR).read_bytes()).decode()
+        return None
+    thumb = ensure_thumb(resolved, STATIC_THUMBS_DIR)
+    return f"/app/static/thumbs/{thumb.name}"
 
 
 def save_photo(photo_bytes: bytes, modelo: str, old_path: str | None = None) -> str:
@@ -75,8 +83,9 @@ def remove_photo(path: str | None) -> None:
     try:
         if resolved.is_relative_to(PHOTOS_DIR.resolve()) and resolved.is_file():
             resolved.unlink()
-            thumb = THUMBS_DIR / resolved.name
-            if thumb.is_file():
-                thumb.unlink()
+            for thumbs_dir in (THUMBS_DIR, STATIC_THUMBS_DIR):
+                thumb = thumbs_dir / resolved.name
+                if thumb.is_file():
+                    thumb.unlink()
     except OSError:
         pass

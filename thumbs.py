@@ -8,7 +8,7 @@ THUMB_SIZE = (320, 320)
 
 def ensure_thumb(resolved: Path, thumbs_dir: Path) -> Path:
     """Gera thumbnail se ausente ou mais velho que a fonte. Retorna caminho do thumb."""
-    thumbs_dir.mkdir(exist_ok=True)
+    thumbs_dir.mkdir(parents=True, exist_ok=True)
     thumb = thumbs_dir / resolved.name
     if not thumb.is_file() or thumb.stat().st_mtime < resolved.stat().st_mtime:
         img = Image.open(resolved).convert("RGB")

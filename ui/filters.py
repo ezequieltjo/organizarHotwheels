@@ -90,23 +90,34 @@ def _um(sel, default="Todos"):
     return sel or default
 
 
-def list_toolbar(source: list, prefix: str) -> list:
-    """Busca + filtros + ordenação compactos. Retorna cars filtrados e ordenados."""
+def list_toolbar(source: list, prefix: str, paginar=None) -> tuple[list, int]:
+    """Busca + filtros + ordenação compactos, em 2 linhas.
+
+    Linha 1: busca (expande) | ordenar (fixo no fim). Linha 2: páginas
+    (callback paginar, à esquerda) | contagem, filtros e reset à direita,
+    com as mesmas larguras da toolbar antiga. Retorna (cars, página ativa) —
+    a página é sempre 1 quando paginar não é informado."""
     n_exibidos = len(filter_cars(source,
                                   st.session_state.get(f"busca_{prefix}", ""),
                                   _um(st.session_state.get(f"filtro_marca_{prefix}", "Todas"), "Todas"),
                                   _um(st.session_state.get(f"filtro_serie_{prefix}", "Todas"), "Todas"),
                                   _um(st.session_state.get(f"filtro_status_{prefix}", "Todos")),
                                   _um(st.session_state.get(f"filtro_fabricante_{prefix}", "Todos"), "Todos")))
-    # linha única: busca | ordenar | filtros | reset | contagem
-    # (filtros com o mínimo p/ o rótulo "Filtros (n)"; sobra vai p/ a busca)
-    c_busca, c_ordem, c_filtro, c_res, c_cnt = st.columns([2.5, 1.8, 1.15, 0.4, 1.15])
+    c_busca, c_ordem = st.columns([5.2, 1.8])
     with c_busca:
         busca = st.text_input("Buscar", placeholder="modelo, marca, fabricante ou série...",
                               key=f"busca_{prefix}", label_visibility="collapsed")
     with c_ordem:
         ordem = st.selectbox("Ordenar por", ORDEM_OPTS, key=f"ordem_{prefix}",
                              label_visibility="collapsed")
+    c_pag, c_cnt, c_filtro, c_res = st.columns([4.3, 1.15, 1.15, 0.4])
+    with c_cnt:
+        # caixa de 40px (altura da linha) com line-height igual: texto centrado
+        # na vertical e alinhado à direita, encostado no botão de Filtros
+        st.markdown(f"<div style='height:40px;line-height:40px;text-align:right;"
+                    f"font-size:1.05rem;white-space:nowrap'>"
+                    f"<b>{n_exibidos}</b> exibidos</div>",
+                    unsafe_allow_html=True)
     with c_filtro:
         n = _ativos(prefix)
         rotulo = f":material/tune: Filtros ({n})" if n else ":material/tune: Filtros"
@@ -125,11 +136,9 @@ def list_toolbar(source: list, prefix: str) -> list:
     with c_res:
         st.button("↺", help="Limpar busca e filtros", key=f"reset_filtros_{prefix}",
                   on_click=reset_filtros, args=(prefix,), width="stretch")
-    with c_cnt:
-        st.markdown(f"<div style='margin-top:.45rem;font-size:1.05rem;white-space:nowrap'>"
-                    f"<b>{n_exibidos}</b> exibidos</div>",
-                    unsafe_allow_html=True)
+    with c_pag:
+        pagina = paginar(n_exibidos) if paginar else 1
 
     cars = sort_cars(filter_cars(source, busca, filtro_marca, filtro_serie,
                                  filtro_status, filtro_fabricante), ordem)
-    return cars
+    return cars, pagina

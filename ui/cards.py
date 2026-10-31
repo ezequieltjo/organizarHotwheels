@@ -1,5 +1,6 @@
 """Componentes de card do carro: foto, zoom, ações, lista desktop/mobile."""
 import base64
+from functools import partial
 
 import streamlit as st
 
@@ -104,9 +105,8 @@ def render_car_card(car, repetidos: set, prefix: str, actions: list) -> None:
 
 
 def _paginar(prefix: str, total: int) -> int:
-    """Seletor de página acima da lista; reseta para 1 ao mudar busca/filtro/ordem.
-
-    Retorna a página atual (sempre <= nº de páginas)."""
+    """Seletor de página (renderizado na 2ª linha da toolbar, via list_toolbar);
+    reseta para 1 ao mudar busca/filtro/ordem. Retorna a página ativa (clampada)."""
     chaves = ("busca", "filtro_marca", "filtro_serie", "filtro_fabricante",
               "filtro_status", "ordem")
     assinatura = tuple(st.session_state.get(f"{k}_{prefix}") for k in chaves)
@@ -130,9 +130,8 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
     rerunam só este bloco; as ações de linha chamam st.rerun() padrão
     (scope='app') porque atualizam contagens do cabeçalho."""
     repetidos = nomes_repetidos(source)
-    cars = list_toolbar(source, prefix)
+    cars, pagina = list_toolbar(source, prefix, paginar=partial(_paginar, prefix))
     maybe_zoom()
-    pagina = _paginar(prefix, len(cars))
     cars = cars[(pagina - 1) * TAM_PAGINA: pagina * TAM_PAGINA]
     if is_mobile():
         for i in range(0, len(cars), 2):

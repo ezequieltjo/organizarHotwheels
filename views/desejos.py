@@ -23,7 +23,7 @@ def wish_card(car) -> None:
 @st.fragment
 def wish_grid(source: list) -> None:
     """Matriz 5 colunas (desktop) ou cards 2 colunas (mobile): foto, nome, ➕/🗑️."""
-    cars = list_toolbar(source, "wish")
+    cars, _ = list_toolbar(source, "wish")
     maybe_zoom()
     if is_mobile():
         per_row = 2

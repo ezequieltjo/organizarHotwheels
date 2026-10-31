@@ -12,6 +12,7 @@ from color_sliders import render_color_sliders
 from ui.state import notify, refresh
 from ui.photos import resolve_photo, save_photo
 from ui.cards import render_car_list
+from ui.crop import botao_cortar
 
 
 def act_favorito(car) -> None:
@@ -81,9 +82,10 @@ def render() -> None:
             del st.session_state.editing_car_id
             editing_id = None
 
-    # lista 70% / form 30%: botões de ação encostados na borda direita da
-    # lista deixam o vão antes do form pequeno e dão mais largura à toolbar
-    c1, c2 = st.columns([7, 3], gap="small")
+    # lista 67% / form 33% (form era 30%, ampliado em 10%): botões de ação
+    # encostados na borda direita da lista deixam o vão antes do form pequeno
+    # e dão mais largura à toolbar
+    c1, c2 = st.columns([6.7, 3.3], gap="small")
     # Lista (c1) ANTES do form (c2): o submit do form aborta a run via st.rerun();
     # se a toolbar de filtros ainda não registrou os widgets, Streamlit descarta
     # os valores e os filtros resetam. Renderizando c1 primeiro, os widgets já
@@ -139,6 +141,7 @@ def _render_editar(editing_car) -> None:
                     f"<div style='border:4px solid {live_color};border-radius:8px;overflow:hidden'>"
                     f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
                     unsafe_allow_html=True)
+        botao_cortar("edit")
 
     # --- Form ---
     with st.form("edit_car"):
@@ -265,6 +268,7 @@ def _render_adicionar() -> None:
                     f"<div style='border:4px solid {_live};border-radius:8px;overflow:hidden'>"
                     f"<img src='data:image/jpeg;base64,{_b64}' style='width:100%;height:320px;object-fit:cover;display:block'></div>",
                     unsafe_allow_html=True)
+        botao_cortar("add")
     with st.form("add_car"):
         l1c1, l1c2 = st.columns(2)
         with l1c1:

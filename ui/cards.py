@@ -5,7 +5,7 @@ from functools import partial
 import streamlit as st
 
 from ui.filters import list_toolbar, nomes_repetidos
-from ui.photos import img_thumb_url, resolve_photo
+from ui.photos import img_thumb_b64, resolve_photo
 
 TAM_PAGINA = 60
 
@@ -20,11 +20,10 @@ def foto_html(car) -> str:
     """HTML da foto em 4:3 com borda na cor do carro; swatch da cor se sem foto.
 
     data-hw-card marca o card para o JS do layout mobile (hw_pair_row_css).
-    Foto por URL estática com loading=lazy: o rerun só transmite o endereço."""
-    url = img_thumb_url(car.foto_path)
-    if url is not None:
+    Foto embutida em base64: passa pelo login do Cloud junto com a página."""
+    if resolve_photo(car.foto_path) is not None:
         return (f"<div data-hw-card style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden'>"
-                f"<img src='{url}' loading='lazy' "
+                f"<img src='data:image/jpeg;base64,{img_thumb_b64(car.foto_path)}' "
                 f"style='width:100%;aspect-ratio:4/3;object-fit:cover;display:block'></div>")
     return (f"<div data-hw-card style='border:3px solid {car.cor_hex};border-radius:6px;"
             f"overflow:hidden;aspect-ratio:4/3;background:{car.cor_hex}'></div>")
@@ -146,11 +145,10 @@ def render_car_list(source: list, prefix: str, actions: list) -> None:
             # alinhadas à direita pelo CSS e encostadas no formulário
             col1, col2, col3 = st.columns([1.3, 5.5, 1.7])
             with col1:
-                url = img_thumb_url(car.foto_path)
-                if url is not None:
+                if resolve_photo(car.foto_path) is not None:
                     st.markdown(
                         f"<div data-hw-card data-hw-thumb style='border:3px solid {car.cor_hex};border-radius:6px;overflow:hidden;min-height:60px;height:100%;box-sizing:border-box'>"
-                        f"<img src='{url}' loading='lazy' style='width:100%;height:100%;object-fit:cover'></div>",
+                        f"<img src='data:image/jpeg;base64,{img_thumb_b64(car.foto_path)}' style='width:100%;height:100%;object-fit:cover'></div>",
                         unsafe_allow_html=True)
                     zoom_btn(car, "row")
                 else:

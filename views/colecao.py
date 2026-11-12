@@ -174,6 +174,18 @@ def _render_editar(editing_car) -> None:
             reserva_edit = st.checkbox("Arquivado", value=editing_car.reserva)
         with fc2:
             customizada_edit = st.checkbox("Customização", value=editing_car.customizada)
+        # campos "novos" dentro do form: assim o valor commita junto no submit
+        # (fora do form, text_input só commita no blur e o submit leria valor velho)
+        with st.container(border=True):
+            st.markdown("**Novas Opções**")
+            st.caption("Preencha aqui quando selecionar '+ Nova...' acima.")
+            no1, no2, no3 = st.columns(3)
+            with no1:
+                st.text_input("Nova marca", key="marca_nova_edit")
+            with no2:
+                st.text_input("Novo fabricante", key="fabricante_novo_edit")
+            with no3:
+                st.text_input("Nova série", key="serie_nova_edit")
         # colunas centrais largas o bastante p/ "Salvar"/"Cancelar" sem cortar
         _, sb1, sb2, _ = st.columns([0.8, 1, 1, 0.8])
         save = sb1.form_submit_button("Salvar", type="primary", use_container_width=True)
@@ -226,16 +238,6 @@ def _render_editar(editing_car) -> None:
                 notify("Carro editado com sucesso!")
                 st.rerun()
     render_color_sliders(_cor_key)
-    with st.container(border=True):
-        st.markdown("**Novas Opções**")
-        st.caption("Preencha aqui quando selecionar '+ Nova...' no formulário acima.")
-        no1, no2, no3 = st.columns(3)
-        with no1:
-            st.text_input("Nova marca", key="marca_nova_edit")
-        with no2:
-            st.text_input("Novo fabricante", key="fabricante_novo_edit")
-        with no3:
-            st.text_input("Nova série", key="serie_nova_edit")
 
 
 def _render_adicionar() -> None:
@@ -291,6 +293,18 @@ def _render_adicionar() -> None:
             desejo_add = st.checkbox("Lista de desejos", value=False)
         with fc3:
             customizada_add = st.checkbox("Customização", value=False)
+        # campos "novos" dentro do form: assim o valor commita junto no submit
+        # (fora do form, text_input só commita no blur e o submit leria valor velho)
+        with st.container(border=True):
+            st.markdown("**Novas Opções**")
+            st.caption("Preencha aqui quando selecionar '+ Nova...' acima.")
+            no1, no2, no3 = st.columns(3)
+            with no1:
+                st.text_input("Nova marca", key="marca_nova_add")
+            with no2:
+                st.text_input("Novo fabricante", key="fabricante_novo_add")
+            with no3:
+                st.text_input("Nova série", key="serie_nova_add")
         # coluna central larga o bastante p/ "Adicionar" sem cortar o texto
         _, add_col, _ = st.columns([1, 1.2, 1])
         with add_col:
@@ -325,13 +339,3 @@ def _render_adicionar() -> None:
                 notify("Carro adicionado com sucesso!")
                 st.rerun()
     render_color_sliders("cor_picker_add")
-    with st.container(border=True):
-        st.markdown("**Novas Opções**")
-        st.caption("Preencha aqui quando selecionar '+ Nova...' no formulário acima.")
-        no1, no2, no3 = st.columns(3)
-        with no1:
-            st.text_input("Nova marca", key="marca_nova_add")
-        with no2:
-            st.text_input("Novo fabricante", key="fabricante_novo_add")
-        with no3:
-            st.text_input("Nova série", key="serie_nova_add")
